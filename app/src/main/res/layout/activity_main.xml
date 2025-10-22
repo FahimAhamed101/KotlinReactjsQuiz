@@ -68,6 +68,7 @@
                 android:layout_marginTop="5dp"
                 android:id="@+id/button_start"
                 android:layout_width="match_parent"
+                android:background="@color/blue"
                 android:layout_height="wrap_content"
                 android:text="@string/start" />
 
