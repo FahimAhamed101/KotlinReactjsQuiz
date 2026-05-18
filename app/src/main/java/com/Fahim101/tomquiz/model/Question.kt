@@ -1,4 +1,4 @@
-package com.example.tomquiz.model
+package com.Fahim101.tomquiz.model
 
 data class Question(
     val id: Int,

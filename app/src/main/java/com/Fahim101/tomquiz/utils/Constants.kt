@@ -1,7 +1,7 @@
-package com.example.tomquiz.utils
+package com.Fahim101.tomquiz.utils
 
-import com.example.tomquiz.R
-import com.example.tomquiz.model.Question
+import com.Fahim101.tomquiz.R
+import com.Fahim101.tomquiz.model.Question
 
 
 object Constants {

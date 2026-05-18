@@ -1,16 +1,14 @@
-package com.example.tomquiz
+package com.Fahim101.tomquiz
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import com.example.tomquiz.ui.QuestionsActivity
-import com.example.tomquiz.utils.Constants
+import com.Fahim101.tomquiz.R
+import com.Fahim101.tomquiz.ui.QuestionsActivity
+import com.Fahim101.tomquiz.utils.Constants
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

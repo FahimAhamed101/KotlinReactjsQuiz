@@ -1,16 +1,14 @@
-package com.example.tomquiz.ui
+package com.Fahim101.tomquiz.ui
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import com.example.tomquiz.MainActivity
-import com.example.tomquiz.R
-import com.example.tomquiz.utils.Constants
+import com.Fahim101.tomquiz.R
+import com.Fahim101.tomquiz.MainActivity
+
+import com.Fahim101.tomquiz.utils.Constants
 
 class ResultActivity : AppCompatActivity() {
     private lateinit var textViewScore: TextView

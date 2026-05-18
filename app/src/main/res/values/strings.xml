@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">TomQuiz</string>
+    <string name="app_name">ReactInterviewQuizz</string>
     <string name="quiz_app">React Quiz App</string>
     <string name="welcome">Welcome</string>
     <string name="name">Name</string>

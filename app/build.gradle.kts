@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.tomquiz"
+    namespace = "com.Fahim101.tomquiz"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.tomquiz"
+        applicationId = "com.Fahim101.tomquiz"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 6
+        versionName = "6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

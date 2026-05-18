@@ -1,4 +1,4 @@
-package com.example.tomquiz.ui
+package com.Fahim101.tomquiz.ui
 
 import android.content.Intent
 import android.graphics.Color
@@ -12,10 +12,11 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.Fahim101.tomquiz.R
 import com.bumptech.glide.Glide
-import com.example.tomquiz.R
-import com.example.tomquiz.model.Question
-import com.example.tomquiz.utils.Constants
+
+import com.Fahim101.tomquiz.model.Question
+import com.Fahim101.tomquiz.utils.Constants
 
 class QuestionsActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var progressBar: ProgressBar
