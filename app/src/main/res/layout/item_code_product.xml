@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="16dp"
+    app:cardBackgroundColor="@android:color/transparent"
+    app:strokeWidth="0dp"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_card_cosmic_gradient"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Top Header: Category Tag, Badge, Rating -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_category"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="Full-Stack"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/tt_teal"
+                android:background="@drawable/tt_btn_skip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp" />
+
+            <TextView
+                android:id="@+id/tv_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="BESTSELLER"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/tt_gold"
+                android:background="@drawable/tt_btn_skip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:layout_marginStart="8dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Rating with Star -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/tt_btn_skip"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp">
+
+                <ImageView
+                    android:layout_width="13dp"
+                    android:layout_height="13dp"
+                    android:src="@drawable/ic_star"
+                    app:tint="@color/tt_gold"
+                    android:contentDescription="Rating Star" />
+
+                <TextView
+                    android:id="@+id/tv_rating"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    tools:text="4.9"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tt_text_primary"
+                    android:layout_marginStart="4dp" />
+
+                <TextView
+                    android:id="@+id/tv_buyers"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    tools:text="(1.8k)"
+                    android:textSize="11sp"
+                    android:textColor="@color/tt_text_secondary"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Project Screenshot Preview Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_thumbnail_container"
+            android:layout_width="match_parent"
+            android:layout_height="185dp"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#040D1E"
+            app:strokeColor="@color/tt_divider"
+            app:strokeWidth="1dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/iv_project_thumbnail"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="Project Banner" />
+
+                <!-- Tap to zoom overlay hint -->
+                <LinearLayout
+                    android:id="@+id/btn_zoom_thumbnail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="10dp"
+                    android:background="@drawable/tt_btn_skip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tap to Zoom 🔍"
+                        android:textColor="@color/white"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:text="React &amp; Next.js 15 Full-Stack E-Commerce Codebase"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/tt_text_primary"
+            android:lineSpacingExtra="2dp"
+            android:layout_marginTop="12dp" />
+
+        <!-- Description -->
+        <TextView
+            android:id="@+id/tv_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:text="Production-ready modern store with TailwindCSS, Stripe checkout, Prisma ORM, and instant search."
+            android:textSize="13sp"
+            android:textColor="@color/tt_text_secondary"
+            android:lineSpacingExtra="2dp"
+            android:layout_marginTop="6dp" />
+
+        <!-- Bullet Features -->
+        <TextView
+            android:id="@+id/tv_features"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:text="✔ Next.js 15 App Router &amp; Server Actions\n✔ Stripe Payment + Webhook Handling\n✔ Full Admin Dashboard &amp; Analytics"
+            android:textSize="12sp"
+            android:textColor="@color/tt_teal"
+            android:lineSpacingExtra="3dp"
+            android:layout_marginTop="8dp" />
+
+        <!-- Code Snippet Mini-Box -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/tt_btn_skip"
+            android:padding="8dp"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_code"
+                app:tint="@color/tt_text_secondary"
+                android:contentDescription="Code snippet" />
+
+            <TextView
+                android:id="@+id/tv_snippet_preview"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                tools:text="// Production verified code included"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:textColor="@color/tt_text_secondary"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/tt_divider"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Pricing Summary Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <!-- Money Price -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="bottom">
+
+                <TextView
+                    android:id="@+id/tv_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    tools:text="$16.99 USD"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tt_text_primary" />
+
+                <TextView
+                    android:id="@+id/tv_original_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    tools:text="$49.99"
+                    android:textSize="12sp"
+                    android:textColor="@color/tt_text_secondary"
+                    android:layout_marginStart="6dp" />
+
+                <TextView
+                    android:id="@+id/tv_discount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    tools:text="65% OFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tt_teal"
+                    android:layout_marginStart="6dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Coin Price Tag -->
+            <LinearLayout
+                android:id="@+id/layout_coin_price_tag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/tt_coin_pill_bg"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/ic_coin"
+                    app:tint="@color/tt_gold"
+                    android:contentDescription="Coins" />
+
+                <TextView
+                    android:id="@+id/tv_coin_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    tools:text="500 Coins"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tt_gold" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Tap to view details hint row -->
+        <TextView
+            android:id="@+id/tv_view_details_hint"
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="10dp"
+            android:gravity="center"
+            android:text="View Full Details &amp; Architecture ➔"
+            android:textColor="@color/tt_teal"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/tt_btn_skip"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- DUAL BUY ACTION BUTTONS (Money AND Coins) -->
+        <LinearLayout
+            android:id="@+id/layout_dual_buy_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Buy with Cash / Play Button -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_buy_cash"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/tt_btn_follow"
+                android:text="Buy with Cash 💳"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:stateListAnimator="@null" />
+
+            <!-- Unlock with Coins Button -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_buy_coins"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/tt_btn_blue_pill"
+                android:text="Unlock with Coins 🪙"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:stateListAnimator="@null" />
+
+        </LinearLayout>
+
+        <!-- Single Owned / Pass Button (Shown when already purchased or subscribed) -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_owned_or_pass"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@drawable/btn_gradient_emerald"
+            android:text="Open Repository &amp; Code 🚀"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:stateListAnimator="@null"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

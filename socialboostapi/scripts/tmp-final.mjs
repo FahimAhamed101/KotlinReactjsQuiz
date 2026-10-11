@@ -1,0 +1,16 @@
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const require = createRequire(import.meta.url);
+const { loadEnv } = require('./load-env.cjs');
+const here = dirname(fileURLToPath(import.meta.url));
+loadEnv(resolve(here, '..', '.env'));
+const db = (await import('../lib/db.js')).default;
+const u = await db.user.findOne({ where: { email: 'demo_user@ttboost.app' } });
+console.log(`demo_user@ttboost.app id=${u.id} coins=${u.coins}`);
+const orders = await db.order.find({ where: { userId: u.id }, sort: { id: 'desc' } });
+console.log(`orders: ${orders.length}`);
+for (const o of orders) console.log(`  id=${o.id} productId=${o.productId} status=${o.status} createdAt=${o.createdAt?.toISOString?.()}`);
+const led = await db.coinsHistory.find({ where: { userId: u.id }, sort: { id: 'desc' } });
+console.log('ledger:'); for (const h of led.slice(0, 4)) console.log(`  id=${h.id} type=${h.type} lost=${h.lost ?? '-'}`);
+process.exit(0);

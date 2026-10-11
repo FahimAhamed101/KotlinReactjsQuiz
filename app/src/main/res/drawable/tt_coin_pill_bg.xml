@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Coin pill in the top bar: a gradient hairline border (blue left -> pink right)
+  around a blue -> violet interior, so the balance reads as a lit glass pill
+  rather than a flat dark lozenge.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Hairline iridescent gradient border -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <gradient
+                android:angle="0"
+                android:startColor="@color/pill_coin_start"
+                android:centerColor="@color/pill_coin_end"
+                android:endColor="@color/pill_cash_start"
+                android:type="linear" />
+        </shape>
+    </item>
+
+    <!-- Interior -->
+    <item
+        android:bottom="1.5dp"
+        android:left="1.5dp"
+        android:right="1.5dp"
+        android:top="1.5dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <gradient
+                android:angle="0"
+                android:type="linear"
+                android:startColor="@color/coin_pill_start"
+                android:endColor="@color/coin_pill_end" />
+        </shape>
+    </item>
+</layer-list>

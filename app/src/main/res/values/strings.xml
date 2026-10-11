@@ -1,10 +1,110 @@
 <resources>
-    <string name="app_name">ReactInterviewQuizz</string>
-    <string name="quiz_app">React Quiz App</string>
-    <string name="welcome">Welcome</string>
-    <string name="name">Name</string>
-    <string name="please_enter_your_name">Please enter your name</string>
-    <string name="start">start</string>
-    <string name="image_flag">Image Flag</string>
-    <string name="check">Check</string>
+    <string name="app_name">SocialBoost</string>
+    <string name="quiz_app">SocialBoost</string>
+    <string name="app_subtitle">Grow your social. Buy source codes.</string>
+    <string name="welcome">Welcome!</string>
+    <string name="welcome_prompt">Enter your TikTok username to start earning coins</string>
+    <string name="name">Your TikTok username</string>
+    <string name="please_enter_your_name">Please enter your TikTok username</string>
+    <string name="start">Get Started</string>
+    <string name="image_flag">Question Illustration</string>
+    <string name="check">Submit Answer</string>
+    <string name="next">Next Question</string>
+    <string name="finish">View Results</string>
+
+    <!-- Navigation & Hub -->
+    <string name="nav_quiz">Play Quiz</string>
+    <string name="nav_buy_codes">Buy Codes</string>
+    <string name="nav_my_codes">My Library</string>
+    <string name="coins_label">Coins</string>
+    <string name="greeting_format">Hello, %1$s 👋</string>
+    <string name="hero_quiz_title">Grow Your TikTok</string>
+    <string name="hero_quiz_desc">Earn coins by following &amp; liking, then spend them on boosts or source codes.</string>
+    <string name="play_now">Earn Coins Now</string>
+    <string name="explore_codes">Explore Code Store</string>
+    <string name="store_headline">Premium Source Codes</string>
+    <string name="store_subtitle">Instant delivery • Production ready • Verified</string>
+
+    <!-- ================= SocialBoost Tasks screen ================= -->
+    <string name="nav_tasks">Tasks</string>
+    <string name="tt_app_name">SocialBoost</string>
+    <string name="tt_wordmark_tt">Social</string>
+    <string name="tt_wordmark_boost">Boost</string>
+    <string name="tt_skip">Skip</string>
+    <string name="tt_follow">Follow</string>
+    <string name="tt_tips">Tips</string>
+    <string name="tt_loading_handle">@loading…</string>
+    <string name="tt_no_tasks">No tasks available right now. Check back soon.</string>
+    <string name="tt_loading_tasks">Loading tasks…</string>
+    <string name="tt_verifying">Verifying…</string>
+    <string name="tt_coins_earned">+%1$d coins earned!</string>
+    <string name="tt_task_skipped">Task skipped</string>
+
+    <string name="tt_step_click_button">Click the button</string>
+    <string name="tt_step_open_app">Open Official App</string>
+    <string name="tt_step_give_follow">Give follow/like</string>
+    <string name="tt_step_back">Back to SocialBoost</string>
+    <string name="tt_step_get_coins">Get Coins</string>
+    <string name="tt_unfollow_warning">Unfollow after completing a task may lead to coin loss or order cancellation.</string>
+
+    <string name="tt_nav_home">Home</string>
+    <string name="tt_nav_store">Store</string>
+    <string name="tt_nav_more">More</string>
+
+    <!-- ================= Sign-in screen ================= -->
+    <string name="tt_tagline">Earn coins. Boost your social.</string>
+    <string name="tt_welcome">Welcome!</string>
+    <string name="tt_welcome_sub">Enter your TikTok username to start earning coins by following and liking, then spend them on boosts or source codes.</string>
+    <string name="tt_username_hint">TikTok username</string>
+    <string name="tt_get_started">Get Started ⚡</string>
+    <string name="tt_badge_tasks">🎯 Like &amp; Follow Tasks</string>
+    <string name="tt_badge_codes">💻 Buy Source Codes</string>
+
+    <!-- ================= Store: boost packages ================= -->
+    <string name="tt_boost_title">Boost your social</string>
+    <string name="tt_boost_hint">Paid with coins or Google Play</string>
+    <string name="tt_boost_loading">Loading packages…</string>
+    <string name="tt_boost_empty">No boost packages available right now.</string>
+    <string name="tt_boost_actions">Actions</string>
+    <string name="tt_boost_need_more">Not enough coins</string>
+    <string name="tt_boost_package">Boost</string>
+    <string name="tt_boost_play">Google Play</string>
+    <string name="tt_boost_confirm_title">Confirm boost order</string>
+    <string name="tt_boost_confirm_body">Send %1$s %2$s to @%3$s?\n\nThis costs %4$d coins.</string>
+    <string name="tt_boost_buy">Place order</string>
+    <string name="tt_boost_cancel">Cancel</string>
+    <string name="tt_boost_ordered">Order placed — %1$s %2$s on the way to @%3$s.</string>
+    <string name="tt_boost_failed">Could not place the order</string>
+    <string name="tt_boost_no_account">Your TikTok account is not linked yet. Sign out and sign in again.</string>
+    <string name="tt_boost_play_only">This package is a Google Play product, not a coin package.</string>
+    <string name="tt_boost_not_enough">You need %1$d coins for this package. You have %2$d.</string>
+
+    <!-- ================= Store: subscription ================= -->
+    <string name="tt_sub_badge">👑 SOCIALBOOST PRO</string>
+    <string name="tt_sub_title">Unlimited Free Likes &amp; Followers</string>
+    <string name="tt_sub_subtitle">Every month: unlimited free likes &amp; followers for your account, PLUS instant access to every source code. You can still buy single codes with coins or money.</string>
+    <string name="tt_sub_button">Subscribe for $5.00 USD / Month 👑</string>
+    <string name="tt_sub_active">👑 Pro Active — unlimited free likes &amp; followers</string>
+    <string name="tt_sub_manage">Manage subscription</string>
+
+    <!-- ================= Store: unlock a code with coins ================= -->
+    <string name="tt_code_coin_price">or unlock with %1$d coins</string>
+    <string name="tt_code_unlock_button">Unlock with %1$d coins</string>
+    <string name="tt_code_unlock_title">Unlock with coins</string>
+    <string name="tt_code_unlock_body">Unlock \"%1$s\" for %2$d coins?\n\nYou have %3$d coins. This is a one-time spend — the code stays yours.</string>
+    <string name="tt_code_unlock_confirm">Unlock now</string>
+    <string name="tt_code_unlock_cancel">Cancel</string>
+    <string name="tt_code_unlocked">%1$s unlocked! Your repository link is ready below.</string>
+    <string name="tt_code_unlock_failed">Could not unlock</string>
+    <string name="tt_code_already_owned">You already own this code — nothing was charged.</string>
+    <string name="tt_code_not_enough">You need %1$d coins for this code. You have %2$d.</string>
+    <string name="tt_code_syncing">Syncing your unlocks…</string>
+
+    <!-- ================= More screen ================= -->
+    <string name="tt_more_orders">My orders</string>
+    <string name="tt_more_no_orders">No orders yet — complete a task to get started.</string>
+    <string name="tt_more_coins_history">Coin history</string>
+    <string name="tt_more_no_history">No coin activity yet.</string>
+    <string name="tt_more_refresh">Refresh balance &amp; history</string>
+    <string name="tt_more_signout">Sign out</string>
 </resources>

@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const require = createRequire(import.meta.url);
+const { loadEnv } = require('./load-env.cjs');
+const here = dirname(fileURLToPath(import.meta.url));
+loadEnv(resolve(here, '..', '.env'));
+const db = (await import('../lib/db.js')).default;
+const users = await db.user.find({});
+for (const u of users) console.log(`id=${String(u.id).padEnd(4)} coins=${String(u.coins).padEnd(7)} email=${u.email}`);
+process.exit(0);

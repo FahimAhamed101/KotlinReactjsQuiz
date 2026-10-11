@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Gradient ring around the task avatar.
+
+  Measured on the original: a LINEAR gradient from the top-left (blue) through
+  violet to the bottom-right (pink) - not a sweep. Built as a layer-list so the
+  inner disc punches out the middle, leaving a ring.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Outer gradient ring -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="315"
+                android:startColor="@color/holo_ring_1"
+                android:centerColor="@color/holo_ring_2"
+                android:endColor="@color/holo_ring_3"
+                android:type="linear" />
+        </shape>
+    </item>
+
+    <!-- Inner disc: inset creates the ring thickness -->
+    <item
+        android:bottom="6dp"
+        android:left="6dp"
+        android:right="6dp"
+        android:top="6dp">
+        <shape android:shape="oval">
+            <solid android:color="@color/tt_background" />
+        </shape>
+    </item>
+</layer-list>

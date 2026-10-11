@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:scrollbars="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/tt_card_bg"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Top Bar: Title & Close -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/dialog_title_header"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Project Details &amp; Code"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/tt_text_primary" />
+
+            <ImageView
+                android:id="@+id/dialog_btn_close"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_close"
+                android:padding="4dp"
+                android:contentDescription="Close" />
+        </LinearLayout>
+
+        <!-- Product Summary & Detail Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/tt_card_bg"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:layout_marginTop="14dp">
+
+            <!-- Main High-Res Project Image Banner -->
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/dialog_iv_project_image"
+                android:layout_width="match_parent"
+                android:layout_height="170dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.MaterialComponents.SmallComponent"
+                android:contentDescription="Project Banner"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Multiple Screenshots Horizontal Scroll Gallery -->
+            <HorizontalScrollView
+                android:id="@+id/dialog_scroll_gallery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:id="@+id/dialog_layout_gallery"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <!-- Product Title -->
+            <TextView
+                android:id="@+id/dialog_product_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:text="React &amp; Next.js 15 Full-Stack E-Commerce Codebase"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/tt_text_primary" />
+
+            <!-- Full Description -->
+            <TextView
+                android:id="@+id/dialog_tv_description"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:text="Full production codebase with modern architecture, API integration, and clean code."
+                android:textSize="12sp"
+                android:textColor="@color/tt_text_secondary"
+                android:lineSpacingExtra="3dp"
+                android:layout_marginTop="6dp" />
+
+            <!-- Feature Bullet List -->
+            <TextView
+                android:id="@+id/dialog_tv_features"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:text="✔ React Native Cross-Platform UI\n✔ Tanstack Query Data Caching"
+                android:textSize="12sp"
+                android:textColor="@color/tt_teal"
+                android:lineSpacingExtra="3dp"
+                android:layout_marginTop="8dp" />
+
+            <!-- Pricing Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="10dp">
+
+                <TextView
+                    android:id="@+id/dialog_product_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    tools:text="$14.99 USD"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tt_teal" />
+
+                <TextView
+                    android:id="@+id/dialog_tv_delivery_type"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" • One-Time IAP • Lifetime Access"
+                    android:textSize="12sp"
+                    android:textColor="@color/tt_text_secondary" />
+            </LinearLayout>
+
+            <!-- Open Live Web Demo / Portfolio Link Button -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_web_link"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/btn_outline"
+                android:text="🌐 Open Live Web Demo / Full Details in Browser"
+                android:textColor="@color/tt_pink"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- State 1: Purchase Form Container -->
+        <LinearLayout
+            android:id="@+id/layout_checkout_form"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="16dp">
+
+            <!-- Payment Method Choice -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Choose Purchase or Subscription"
+                android:textSize="13sp"
+                android:textColor="@color/tt_text_secondary"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Option 1: One-Time Purchase -->
+            <LinearLayout
+                android:id="@+id/layout_option_onetime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/tt_btn_follow"
+                android:padding="12dp"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_flash"
+                    app:tint="@color/tt_teal"
+                    android:contentDescription="One-time" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginStart="10dp">
+
+                    <TextView
+                        android:id="@+id/dialog_tv_onetime_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="One-Time In-App Purchase"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/tt_text_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Lifetime access to this codebase only"
+                        android:textSize="11sp"
+                        android:textColor="@color/tt_text_secondary" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/dialog_iv_onetime_check"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="@color/tt_teal"
+                    android:contentDescription="Selected" />
+            </LinearLayout>
+
+            <!-- Option 2: All-Access Subscription -->
+            <LinearLayout
+                android:id="@+id/layout_option_subscription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/tt_btn_skip"
+                android:padding="12dp"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_trophy"
+                    app:tint="@color/tt_gold"
+                    android:contentDescription="Subscription" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginStart="10dp">
+
+                    <TextView
+                        android:id="@+id/dialog_tv_sub_price"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="$5.00 USD / mo All-Access Pass"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/tt_text_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="👑 Unlocks THIS code + ALL other codebases"
+                        android:textSize="11sp"
+                        android:textColor="@color/tt_gold" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/dialog_iv_sub_check"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="@color/tt_text_secondary"
+                    android:visibility="invisible"
+                    android:contentDescription="Selected" />
+            </LinearLayout>
+
+            <!-- Promo Code Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="12dp">
+
+                <EditText
+                    android:id="@+id/dialog_et_promo"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/tt_btn_skip"
+                    android:hint="Promo Code (e.g. DEVQUIZ25)"
+                    android:textColorHint="@color/tt_text_secondary"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="13sp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:singleLine="true" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/dialog_btn_apply_promo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="46dp"
+                    android:background="@drawable/btn_outline"
+                    android:text="Apply"
+                    android:textColor="@color/tt_pink"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/dialog_tv_promo_applied"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✔ 25% Quiz Reward Promo Applied!"
+                android:textSize="12sp"
+                android:textColor="@color/tt_teal"
+                android:visibility="gone"
+                android:layout_marginTop="6dp" />
+
+            <!-- Live Google Play billing status / diagnostics -->
+            <TextView
+                android:id="@+id/dialog_tv_billing_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Connecting to Google Play…"
+                android:textSize="11sp"
+                android:textColor="@color/tt_text_secondary"
+                android:lineSpacingExtra="2dp"
+                android:layout_marginTop="10dp" />
+
+            <!-- Button 1: Buy This Code -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_confirm_purchase"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/tt_btn_follow"
+                android:text="Buy This Code with Google Play ⚡"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- Alternative: spend coins earned from the follow/like tasks.
+                 Hidden unless the server publishes a coin price for this code, so
+                 it can never offer a price the backend would reject. -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_unlock_coins"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/tt_btn_skip"
+                android:stateListAnimator="@null"
+                android:text="Unlock with coins"
+                android:textColor="@color/tt_gold"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- Button 2: Restore previously purchased codes -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_restore_purchases"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/tt_btn_follow"
+                android:text="Already paid? Restore My Purchases"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- State 2: Unlocked Code Details Container (Visible After Purchase) -->
+        <LinearLayout
+            android:id="@+id/layout_unlocked_code"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/option_correct_bg"
+                android:padding="12dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="@color/tt_teal"
+                    android:contentDescription="Success" />
+
+                <TextView
+                    android:id="@+id/dialog_tv_unlocked_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Purchase Successful! Code Unlocked 🎉"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tt_teal"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <!-- GitHub Repository Link -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Repository Access URL"
+                android:textSize="12sp"
+                android:textColor="@color/tt_text_secondary"
+                android:layout_marginTop="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/tt_card_bg"
+                android:padding="10dp"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/dialog_tv_repo_url"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    tools:text="https://github.com/buycodesonline/nextjs-ecommerce-pro"
+                    android:textSize="12sp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/tt_teal" />
+
+                <ImageView
+                    android:id="@+id/dialog_btn_copy_repo"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_copy"
+                    app:tint="@color/tt_text_primary"
+                    android:padding="2dp"
+                    android:contentDescription="Copy Link" />
+            </LinearLayout>
+
+            <!-- Code Snippet Box -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Source Code Snippet Preview"
+                android:textSize="12sp"
+                android:textColor="@color/tt_text_secondary"
+                android:layout_marginTop="12dp" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="100dp"
+                android:background="@drawable/tt_btn_skip"
+                android:layout_marginTop="4dp"
+                android:padding="8dp">
+
+                <TextView
+                    android:id="@+id/dialog_tv_code_snippet"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textSize="11sp"
+                    android:textColor="@color/tt_text_primary"
+                    tools:text="// Production code snippet goes here..." />
+            </ScrollView>
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_open_github"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/tt_btn_follow"
+                android:text="Open GitHub &amp; Download Source Code 🚀"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_buy_lifetime"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/btn_outline"
+                android:text="⚡ Buy Lifetime Ownership with Google Play"
+                android:textColor="@color/tt_teal"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- Re-query the Google Play product catalog -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_refresh_products"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/btn_outline"
+                android:text="🔄 Refresh Google Play Products"
+                android:textColor="@color/tt_pink"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/dialog_btn_done"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/tt_btn_follow"
+                android:text="Done / Close"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

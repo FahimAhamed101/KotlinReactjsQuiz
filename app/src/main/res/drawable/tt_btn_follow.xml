@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The primary call to action: Follow / Get Started / every price pill.
+
+  A bright-pink -> brand-pink -> violet sweep. This is the single most reused
+  drawable in the app (login button, Store price pills, code buy buttons, the
+  Follow button), so it carries the brand gradient everywhere at once.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="999dp" />
+    <gradient
+        android:angle="0"
+        android:type="linear"
+        android:startColor="@color/cta_start"
+        android:centerColor="@color/cta_mid"
+        android:endColor="@color/cta_end" />
+    <stroke
+        android:width="1.5dp"
+        android:color="#4DFFFFFF" />
+</shape>

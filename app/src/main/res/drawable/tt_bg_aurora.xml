@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App background: a deep navy -> indigo -> violet aurora.
+
+  Every screen root uses this instead of a flat `@color/tt_background` fill, so
+  the dark theme has depth rather than reading as one flat navy sheet. The stops
+  stay dark on purpose — text_primary is #F8FAFC and has to stay readable.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:type="linear"
+        android:startColor="@color/aurora_1"
+        android:centerColor="@color/aurora_2"
+        android:endColor="@color/aurora_3" />
+</shape>

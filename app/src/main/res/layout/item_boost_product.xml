@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One TikTok boost package card in the Boost Store grid.
+-->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="@android:color/transparent"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_card_cosmic_gradient"
+        android:orientation="vertical"
+        android:padding="15dp">
+
+        <!-- Followers / Likes pill -->
+        <TextView
+            android:id="@+id/tv_boost_type"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/tt_btn_skip"
+            android:paddingStart="9dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="9dp"
+            android:paddingBottom="3dp"
+            android:text="Followers"
+            android:textColor="@color/tt_pink"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <!-- Action count -->
+        <TextView
+            android:id="@+id/tv_boost_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="100"
+            android:textColor="@color/tt_text_primary"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_boost_count_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/tt_boost_actions"
+            android:textColor="@color/tt_text_secondary"
+            android:textSize="11sp" />
+
+        <!-- Price row: coin mark (coins) or no mark (currency) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/iv_boost_icon"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:contentDescription="Coins"
+                android:src="@drawable/ic_coin"
+                app:tint="@color/tt_gold" />
+
+            <TextView
+                android:id="@+id/tv_boost_price"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="200"
+                android:textColor="@color/tt_gold"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- "Not enough coins" hint, shown by the adapter when the balance is short -->
+        <TextView
+            android:id="@+id/tv_boost_locked"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/tt_boost_need_more"
+            android:textColor="@color/tt_tip_red"
+            android:textSize="10sp"
+            android:visibility="gone" />
+
+        <!-- Buy / Boost action chip -->
+        <TextView
+            android:id="@+id/btn_card_boost_action"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:text="Boost Now ⚡"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:background="@drawable/tt_btn_follow"
+            android:layout_marginTop="10dp" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -13,3 +13,30 @@
 .externalNativeBuild
 .cxx
 local.properties
+/ttboost
+# Dependencies & Build artifacts
+node_modules/
+.next/
+out/
+build/
+*.db
+*.db-journal
+
+# Secrets - never commit these
+.env
+.env.*
+service-account.json
+*-service-account.json
+buycodeprobackend/service-account.json
+buycodeprobackend/.env
+socialboostapi/.env
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
+
+# Extra debug screenshots & scratch logs
+*.png
+.workbuddy-ai/
+.kotlin/
+PURCHASE_FIX_REPORT.md

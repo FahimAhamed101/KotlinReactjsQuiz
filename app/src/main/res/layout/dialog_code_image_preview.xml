@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#E6010B1F">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Top bar with title and close button -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:background="@color/tt_surface">
+
+            <TextView
+                android:id="@+id/tv_preview_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                tools:text="E-Commerce Screenshot"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:ellipsize="end"
+                android:singleLine="true" />
+
+            <ImageView
+                android:id="@+id/btn_preview_close"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_close"
+                app:tint="@color/white"
+                android:background="?selectableItemBackgroundBorderless"
+                android:contentDescription="Close"
+                android:padding="6dp" />
+        </LinearLayout>
+
+        <!-- Fullscreen zoomable image container -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:padding="12dp">
+
+            <ImageView
+                android:id="@+id/iv_fullscreen_preview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitCenter"
+                android:contentDescription="Screenshot Fullscreen" />
+
+            <ProgressBar
+                android:id="@+id/progress_image_load"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:indeterminateTint="@color/tt_pink"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- Bottom caption -->
+        <TextView
+            android:id="@+id/tv_preview_caption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/tt_surface"
+            android:padding="12dp"
+            android:gravity="center"
+            android:text="Pinch or tap to view high-resolution architecture &amp; UI"
+            android:textColor="@color/tt_text_secondary"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</FrameLayout>

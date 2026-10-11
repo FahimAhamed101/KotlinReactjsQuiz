@@ -1,0 +1,12 @@
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const require = createRequire(import.meta.url);
+const { loadEnv } = require('./load-env.cjs');
+const here = dirname(fileURLToPath(import.meta.url));
+loadEnv(resolve(here, '..', '.env'));
+const db = (await import('../lib/db.js')).default;
+const u = await db.user.findOne({ where: { email: 'demo_user@ttboost.app' } });
+const upd = await db.user.update({ where: { id: u.id }, data: { coins: Number(process.argv[2] ?? 50) } });
+console.log(`server balance: ${u.coins} -> ${upd.coins} (app still caches the old value)`);
+process.exit(0);

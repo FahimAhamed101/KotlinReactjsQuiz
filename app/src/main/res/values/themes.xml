@@ -1,9 +1,19 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.TomQuiz" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/primary_indigo</item>
+        <item name="colorPrimaryVariant">@color/primary_indigo_dark</item>
+        <item name="colorSecondary">@color/accent_cyan</item>
+        <item name="android:statusBarColor">@color/bg_dark</item>
+        <item name="android:navigationBarColor">@color/bg_dark</item>
+        <item name="android:windowBackground">@color/bg_dark</item>
     </style>
 
     <style name="Theme.TomQuiz" parent="Base.Theme.TomQuiz" />
+
+    <!-- Circular crop for the SocialBoost task avatar. -->
+    <style name="TTCircleImage">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
 </resources>

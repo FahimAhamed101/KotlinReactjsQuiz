@@ -1,0 +1,26 @@
+{
+  "name": "socialboost-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SocialBoost client API — Laravel backend ported to Next.js route handlers (JavaScript), backed by MongoDB through Mongoose.",
+  "scripts": {
+    "dev": "next dev -p 4000",
+    "build": "next build",
+    "start": "next start -p 4000",
+    "db:seed": "node --import ./scripts/register-esm-hook.mjs scripts/seed.mjs",
+    "db:verify": "node --import ./scripts/register-esm-hook.mjs scripts/seed-verify.mjs",
+    "db:check": "node --import ./scripts/register-esm-hook.mjs scripts/mongo-check.mjs"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.13.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.12",
+    "mongoose": "^9.11.1",
+    "next": "^14.2.18",
+    "playwright-core": "^1.64.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-redux": "^9.3.0",
+    "zod": "^4.6.5"
+  }
+}

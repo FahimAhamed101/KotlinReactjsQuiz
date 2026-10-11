@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="60dp"
+    android:layout_marginTop="4.5dp"
+    android:layout_marginBottom="4.5dp"
+    app:cardBackgroundColor="@android:color/transparent"
+    app:cardCornerRadius="18dp"
+    app:strokeWidth="0dp"
+    app:cardElevation="2dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_card_cosmic_gradient"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <!-- Left: Action Icon (Person or Heart) -->
+        <ImageView
+            android:id="@+id/iv_boost_row_icon"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:src="@drawable/ic_person"
+            app:tint="@color/tt_pink"
+            android:contentDescription="Type" />
+
+        <!-- Count (e.g. +200, +400, +10) -->
+        <TextView
+            android:id="@+id/tv_boost_row_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            tools:text="+200"
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- Spacer pushing discount tag and button to the right -->
+        <View
+            android:id="@+id/view_boost_spacer"
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Discount Tag (e.g. 17% OFF) - bold white text with vibrant flame badge -->
+        <TextView
+            android:id="@+id/tv_boost_row_discount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/badge_discount_flame"
+            tools:text="17% OFF"
+            android:textColor="@color/white"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <!-- Right: Cash Pill Button (Pink: $2.99) -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_boost_cash_pill"
+            android:layout_width="86dp"
+            android:layout_height="36dp"
+            android:background="@drawable/tt_btn_pink_pill"
+            android:gravity="center"
+            android:textColor="@color/white"
+            android:textSize="13.5sp"
+            android:textStyle="bold"
+            android:stateListAnimator="@null"
+            tools:text="$2.99"
+            android:visibility="visible" />
+
+        <!-- Right: Coin Pill Layout (Blue: 100 ⭐) -->
+        <LinearLayout
+            android:id="@+id/layout_boost_coin_pill"
+            android:layout_width="86dp"
+            android:layout_height="36dp"
+            android:background="@drawable/tt_btn_blue_pill"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_boost_coin_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="100"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="5dp"
+                android:src="@drawable/ic_star_coin"
+                android:contentDescription="Star coin" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

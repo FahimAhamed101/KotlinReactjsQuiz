@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+
+# Local database
+*.db
+*.db-journal
+prisma/dev.db
+
+# Env — .env.example is committed, .env is not
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*

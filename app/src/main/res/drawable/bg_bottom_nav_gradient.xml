@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bottom navigation background: frosted dark gradient with subtle top glow hairline.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:type="linear"
+                android:startColor="@color/topbar_start"
+                android:centerColor="@color/topbar_mid"
+                android:endColor="@color/topbar_end" />
+        </shape>
+    </item>
+    <!-- Subtle top holographic hairline glow -->
+    <item android:gravity="top">
+        <shape android:shape="rectangle">
+            <size android:height="1dp" />
+            <gradient
+                android:angle="0"
+                android:type="linear"
+                android:startColor="#3300F2FE"
+                android:centerColor="#33818CF8"
+                android:endColor="#33FF007F" />
+        </shape>
+    </item>
+</layer-list>

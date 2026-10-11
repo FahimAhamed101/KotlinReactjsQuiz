@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Top bar: indigo -> violet.
+
+  Slightly lighter than the aurora behind it, so the header reads as a raised
+  surface without needing a hard divider line.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:type="linear"
+                android:startColor="@color/topbar_start"
+                android:centerColor="@color/topbar_mid"
+                android:endColor="@color/topbar_end" />
+        </shape>
+    </item>
+    <!-- Subtle holographic bottom glow hairline -->
+    <item android:gravity="bottom">
+        <shape android:shape="rectangle">
+            <size android:height="1dp" />
+            <gradient
+                android:angle="0"
+                android:type="linear"
+                android:startColor="#3300F2FE"
+                android:centerColor="#33818CF8"
+                android:endColor="#33FF007F" />
+        </shape>
+    </item>
+</layer-list>

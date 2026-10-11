@@ -1,7 +1,145 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Core Brand Palette - Buy Codes Online -->
+    <color name="bg_dark">#0A0E1A</color>
+    <color name="bg_card">#121829</color>
+    <color name="bg_card_secondary">#1A2238</color>
+    <color name="bg_card_highlight">#222D47</color>
+    <color name="border_subtle">#2A3753</color>
+    <color name="border_focused">#6366F1</color>
+
+    <!-- Accents & Gradients -->
+    <color name="primary_indigo">#6366F1</color>
+    <color name="primary_indigo_dark">#4F46E5</color>
+    <color name="primary_indigo_light">#818CF8</color>
+    <color name="accent_cyan">#06B6D4</color>
+    <color name="accent_cyan_dark">#0891B2</color>
+    <color name="accent_emerald">#10B981</color>
+    <color name="accent_emerald_dark">#059669</color>
+    <color name="accent_rose">#EF4444</color>
+    <color name="accent_rose_dark">#DC2626</color>
+    <color name="accent_amber">#F59E0B</color>
+    <color name="accent_purple">#8B5CF6</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_muted">#64748B</color>
+
+    <!-- System & Legacy Support -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="blue">#77c4fe</color>
-    <color name="purple_500">#FF6200EE</color>
+    <color name="blue">#6366F1</color>
+    <color name="purple_500">#6366F1</color>
+    <color name="transparent">#00000000</color>
+
+    <!-- Translucent overlays -->
+    <color name="overlay_white_10">#1AFFFFFF</color>
+    <color name="overlay_white_05">#0DFFFFFF</color>
+    <color name="overlay_indigo_20">#336366F1</color>
+    <color name="overlay_emerald_20">#3310B981</color>
+    <color name="overlay_rose_20">#33EF4444</color>
+    <color name="overlay_amber_20">#33F59E0B</color>
+
+    <!-- ==============================================================
+         SocialBoost palette
+         Sampled pixel-by-pixel from the original SocialBoost 9.0 screenshots
+         so the Tasks screen matches the real app exactly.
+         ============================================================== -->
+    <color name="tt_background">#010B1F</color>
+    <color name="tt_top_bar">#030D22</color>
+    <color name="tt_surface">#06122A</color>
+    <color name="tt_surface_elevated">#0B1B3A</color>
+    <color name="tt_divider">#12234A</color>
+
+    <!-- Primary pink + the dimmer pressed variant -->
+    <color name="tt_pink">#FF0B59</color>
+    <color name="tt_pink_dim">#C4154A</color>
+
+    <!-- Coin gold -->
+    <color name="tt_gold">#FDC90E</color>
+    <color name="tt_gift_gold">#FFD51A</color>
+
+    <!-- Blues -->
+    <color name="tt_blue">#0095F8</color>
+    <color name="tt_accent_blue">#004CEB</color>
+    <color name="tt_skip_button">#061846</color>
+    <color name="tt_chevron">#2153BE</color>
+
+    <!-- Text -->
+    <color name="tt_text_primary">#FFFFFF</color>
+    <color name="tt_text_secondary">#9AA0B5</color>
+    <color name="tt_version_text">#B3B6BC</color>
+
+    <!-- Tips card icon chip + warning red -->
+    <color name="tt_tip_red">#FF0B59</color>
+    <color name="tt_icon_chip">#3A0A22</color>
+
+    <!-- Gradient stops: avatar ring (blue -> violet -> pink) -->
+    <color name="tt_ring_start">#2B7EDD</color>
+    <color name="tt_ring_mid">#6A5CB7</color>
+    <color name="tt_ring_end">#D42274</color>
+
+    <!-- Gradient stops: coin pill hairline border -->
+    <color name="tt_coin_border_start">#2183E4</color>
+    <color name="tt_coin_border_end">#DE1D6D</color>
+    <color name="tt_coin_pill">#071537</color>
+
+    <!-- Accent chips used by the Store/Settings lists -->
+    <color name="tt_purple">#985EF1</color>
+    <color name="tt_teal">#00E1E3</color>
+
+    <!-- ==============================================================
+         Bespoke Luxury Gradient System
+         Multi-stop chromatic palettes providing depth, glassmorphism,
+         and a unique high-end flagship identity.
+         ============================================================== -->
+
+    <!-- App background: deep cosmic nebula -> obsidian -> midnight violet -->
+    <color name="aurora_1">#060919</color>
+    <color name="aurora_2">#0D1333</color>
+    <color name="aurora_3">#150F36</color>
+    <color name="aurora_4">#1C0D2F</color>
+
+    <!-- Top bar: frosted twilight gradient -->
+    <color name="topbar_start">#0B1230</color>
+    <color name="topbar_mid">#12163B</color>
+    <color name="topbar_end">#191242</color>
+
+    <!-- Primary CTA: neon punch -> hot magenta -> royal violet -->
+    <color name="cta_start">#FF2A6D</color>
+    <color name="cta_mid">#E11D74</color>
+    <color name="cta_end">#8B5CF6</color>
+
+    <!-- Cash Pill Buttons: Electric Sunset Magenta -> Amethyst -->
+    <color name="pill_cash_start">#FF1361</color>
+    <color name="pill_cash_mid">#F72585</color>
+    <color name="pill_cash_end">#7209B7</color>
+
+    <!-- Coin Pill Buttons: Cyber Aqua -> Electric Azure -> Royal Indigo -->
+    <color name="pill_coin_start">#00F2FE</color>
+    <color name="pill_coin_mid">#0077FE</color>
+    <color name="pill_coin_end">#6366F1</color>
+
+    <!-- Coin pill interior & border highlights -->
+    <color name="coin_pill_start">#0B1B45</color>
+    <color name="coin_pill_end">#1A1140</color>
+
+    <!-- Premium Glassmorphic Cards -->
+    <color name="card_grad_start">#0E1736</color>
+    <color name="card_grad_mid">#131B40</color>
+    <color name="card_grad_end">#1B153C</color>
+    <color name="card_border_glow">#38BDF8</color>
+    <color name="card_border_glow_mid">#818CF8</color>
+    <color name="card_border_glow_end">#C084FC</color>
+
+    <!-- Discount Flaming Badge: Coral Fire -> Golden Amber -->
+    <color name="discount_grad_start">#FF2E63</color>
+    <color name="discount_grad_end">#FF7A00</color>
+
+    <!-- VIP Holographic Avatar Ring: Pure Cyan -> Electric Purple -> Vivid Hot Rose -->
+    <color name="holo_ring_1">#00F2FE</color>
+    <color name="holo_ring_2">#7928CA</color>
+    <color name="holo_ring_3">#FF007F</color>
+    <color name="holo_ring_4">#FF7A00</color>
 </resources>

@@ -1,82 +1,209 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  Entry / sign-in screen.
+
+  The handle entered here becomes the SocialBoost account: the app derives a login id
+  from it, calls /v6/login and falls back to /v6/register.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="@drawable/bg"
-    android:gravity="center">
+    android:background="@drawable/tt_bg_aurora"
+    android:padding="24dp"
+    tools:context=".MainActivity">
 
-
-    <TextView
-        android:text="@string/quiz_app"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="35sp"
-        android:textColor="@color/white"
-        android:textStyle="bold"
-        android:layout_marginBottom="12dp"/>
-
-    <androidx.cardview.widget.CardView
+    <!-- Brand header -->
+    <LinearLayout
+        android:id="@+id/header_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/white"
-        app:cardCornerRadius="10dp"
-        android:layout_marginTop="15dp">
+        android:gravity="center"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/card_welcome"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed">
 
-        <androidx.appcompat.widget.LinearLayoutCompat
+        <FrameLayout
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/tt_avatar_ring"
+            android:padding="14dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Brand Logo"
+                android:src="@drawable/ic_flash"
+                app:tint="@color/tt_gold" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tt_wordmark_tt"
+                android:textColor="@color/tt_text_primary"
+                android:textSize="32sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tt_wordmark_boost"
+                android:textColor="@color/tt_pink"
+                android:textSize="32sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/tt_tagline"
+            android:textColor="@color/tt_text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- Sign-in card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_welcome"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        app:cardBackgroundColor="@color/tt_surface"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp"
+        app:layout_constraintBottom_toTopOf="@id/badges_container"
+        app:layout_constraintTop_toBottomOf="@id/header_container"
+        app:strokeColor="@color/tt_divider"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="center"
-            android:padding="15dp">
+            android:padding="24dp">
 
             <TextView
-                android:textSize="35sp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textStyle="bold"
-                android:textColor="@color/black"
-                android:text="@string/welcome"/>
+                android:text="@string/tt_welcome"
+                android:textColor="@color/tt_text_primary"
+                android:textSize="24sp"
+                android:textStyle="bold" />
 
             <TextView
-                android:text="@string/please_enter_your_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="20sp"
-                android:layout_marginTop="15dp"
-                android:textStyle="normal"
-                android:textColor="@android:color/darker_gray"
-                android:padding="10dp"/>
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="20dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/tt_welcome_sub"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="14sp" />
 
             <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                android:hint="@string/tt_username_hint"
+                android:textColorHint="@color/tt_text_secondary"
+                app:boxBackgroundColor="@color/tt_surface_elevated"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="@color/tt_pink"
+                app:boxStrokeWidthFocused="2dp"
+                app:startIconDrawable="@drawable/ic_person"
+                app:startIconTint="@color/tt_pink">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/name"
-                    android:hint="@string/name"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"/>
+                    android:layout_height="wrap_content"
+                    android:inputType="textNoSuggestions"
+                    android:singleLine="true"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="16sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <Button
-                android:layout_marginTop="5dp"
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/button_start"
                 android:layout_width="match_parent"
-                android:background="@color/blue"
+                android:layout_height="54dp"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/tt_btn_follow"
+                android:stateListAnimator="@null"
+                android:text="@string/tt_get_started"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/progress_login"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="14dp"
+                android:indeterminateTint="@color/tt_pink"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tv_login_status"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/start" />
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="13sp"
+                android:visibility="gone" />
 
-        </androidx.appcompat.widget.LinearLayoutCompat>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
+    <!-- Feature badges -->
+    <LinearLayout
+        android:id="@+id/badges_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/card_welcome">
 
-    </androidx.cardview.widget.CardView>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/tt_btn_skip"
+            android:paddingStart="12dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="6dp"
+            android:text="@string/tt_badge_tasks"
+            android:textColor="@color/tt_pink"
+            android:textSize="12sp" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/tt_btn_skip"
+            android:paddingStart="12dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="6dp"
+            android:text="@string/tt_badge_codes"
+            android:textColor="@color/tt_gold"
+            android:textSize="12sp" />
+    </LinearLayout>
 
-
-</androidx.appcompat.widget.LinearLayoutCompat>
+</androidx.constraintlayout.widget.ConstraintLayout>
