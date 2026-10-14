@@ -20,7 +20,15 @@ import java.net.URL
 object SocialBoostApi {
 
     private const val TAG = "SocialBoostApi"
-    private const val TIMEOUT_MS = 12_000
+
+    /**
+     * Request timeout.
+     *
+     * 12s was too tight: the first call after a serverless cold start — plus a live
+     * TikTok lookup inside the feed — regularly exceeded it, so the Tasks tab showed
+     * "Could not load tasks" for a request the server was about to answer normally.
+     */
+    private const val TIMEOUT_MS = 30_000
 
     /** One task in the Home feed. */
     data class TaskItem(
@@ -227,15 +235,41 @@ object SocialBoostApi {
             if (!secUid.isNullOrBlank()) put("sec_uid", secUid)
             put("tt_username", ttUsername)
             put("tiktok_username", targetUsername)
-            if (isLikes) {
-                put("likes_incremented", actionCompleted)
-            } else {
-                put("follow_incremented", actionCompleted)
-            }
+            // Deliberately NO `follow_incremented` / `likes_incremented` here.
+            //
+            // Sending them made the server take a shortcut that credited coins on the
+            // client's word alone, so a tap on Follow paid out instantly whether or not
+            // the follow had happened. The server now verifies against the live
+            // counters, and those flags would (correctly) be ignored anyway.
         }
 
         val data = call("POST", "/api/v6/coins/check", body, token)
         return if (data.optBoolean("is_success", false)) data.optInt("coins_earned", 0) else 0
+    }
+
+    /**
+     * POST /api/v6/posts/url -> snapshot the target video's like count.
+     *
+     * A like can only be verified by comparing the video's like count before and
+     * after, and the "before" value lives in a `like_counts` row that must be written
+     * *before* the user taps Like. Without this call the checker throws
+     * "Previous like count not found" and the task can never be completed.
+     */
+    fun primeLikeBaseline(
+        token: String,
+        orderId: Int,
+        url: String,
+        ttUsername: String,
+        secUid: String?
+    ) {
+        if (url.isBlank()) return
+        val body = JSONObject().apply {
+            put("order_id", orderId)
+            put("url", url)
+            put("tt_username", ttUsername)
+            if (!secUid.isNullOrBlank()) put("sec_uid", secUid)
+        }
+        call("POST", "/api/v6/posts/url", body, token)
     }
 
     /** POST /api/v6/orders/skip-count -> stop serving this task. */

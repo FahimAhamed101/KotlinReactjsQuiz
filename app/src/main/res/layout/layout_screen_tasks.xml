@@ -17,10 +17,20 @@
     android:orientation="vertical">
 
     <!-- ======================= Task area ======================= -->
-    <FrameLayout
+    <!--
+      SwipeRefreshLayout wraps the whole task area so the empty state's
+      "Pull to retry" is a real gesture. It previously said "pull" while nothing
+      listened for the swipe, so a failed load left the screen stuck.
+    -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_tasks"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
         <!-- Loading / empty state -->
         <LinearLayout
@@ -389,6 +399,7 @@
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>
-    </FrameLayout>
+        </FrameLayout>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </LinearLayout>

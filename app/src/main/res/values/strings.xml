@@ -57,6 +57,10 @@
     <string name="tt_welcome_sub">Enter your TikTok username to start earning coins by following and liking, then spend them on boosts or source codes.</string>
     <string name="tt_username_hint">TikTok username</string>
     <string name="tt_get_started">Get Started ⚡</string>
+    <!-- Optional second sign-in path: hand the identity check over to TikTok itself. -->
+    <string name="tt_or">or</string>
+    <string name="tt_tiktok_login">Already signed in to TikTok</string>
+    <string name="tt_tiktok_hint">We open TikTok — where you are already logged in. Copy your profile link there and come back; we fill your username in automatically.</string>
     <string name="tt_badge_tasks">🎯 Like &amp; Follow Tasks</string>
     <string name="tt_badge_codes">💻 Buy Source Codes</string>
 

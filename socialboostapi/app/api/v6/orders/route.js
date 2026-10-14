@@ -32,7 +32,9 @@ export const GET = handle(async (request) => {
   // Snapshot the target account's counters so the checker has an anchor to
   // compare against. Mirrors the follow_counts upsert in getOrderList.
   if (account) {
-    await refreshFollowCountAnchor(account);
+    // Best-effort. The anchor is only needed by the *verifier* later on; if refreshing
+    // it fails, the feed itself must still render.
+    await refreshFollowCountAnchor(account).catch(() => {});
   }
 
   const perPage = await getInt('freeOrdersPerPage', 10);
@@ -113,11 +115,25 @@ async function resolveViewerAccount(secUid, username) {
  * follower_count — following_count is the checker's anchor and must not be
  * overwritten, or a completed task could be re-verified forever.
  */
-async function refreshFollowCountAnchor(account) {
-  const profile = await getProfileInfo(account.username, account.secUid);
-  if (!profile) return;
+const ANCHOR_REFRESH_MS = 10 * 60 * 1000;
 
+async function refreshFollowCountAnchor(account) {
   const existing = await db.followCount.findOne({ where: { username: account.username } });
+
+  // Do NOT scrape TikTok on every feed load.
+  //
+  // This used to run a live profile fetch unconditionally, so simply opening the Tasks
+  // tab always cost a round-trip to the scraper (measured ~3.8s warm). On a cold
+  // serverless start that was enough to blow past the client's request timeout, which
+  // surfaced as "Could not load tasks" even though the feed itself was ready. The
+  // anchor only has to be *fresh*, not brand new, so a recent row is reused as-is.
+  if (existing && Date.now() - new Date(existing.updatedAt).getTime() < ANCHOR_REFRESH_MS) {
+    return;
+  }
+
+  const profile = await getProfileInfo(account.username, account.secUid).catch(() => null);
+  // A scraper outage must not break the feed; the anchor simply keeps its old value.
+  if (!profile) return;
 
   if (!existing) {
     await db.followCount.create({

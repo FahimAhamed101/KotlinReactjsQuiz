@@ -38,5 +38,18 @@ replay_pid*.log
 # Extra debug screenshots & scratch logs
 *.png
 .workbuddy-ai/
+
+# ---------------------------------------------------------------------------
+# Reverse-engineering scratch — never commit these.
+#
+# `rea/` is a *separate* git repository (the REA MCP toolkit, morluto/rea). Left
+# untracked-and-unignored it gets staged as a gitlink, which silently turns it
+# into a broken submodule reference instead of the files you meant to add.
+# `_apkwork/` is ~130 MB of extracted APK; committing it would bloat the repo
+# permanently and is what the working tree's disk pressure is made of.
+# ---------------------------------------------------------------------------
+rea/
+_apkwork/
+ui_dump.xml
 .kotlin/
 PURCHASE_FIX_REPORT.md

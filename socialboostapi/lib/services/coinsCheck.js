@@ -114,29 +114,19 @@ export async function handleCheck({ userId, body }) {
 // ---------------------------------------------------------------------------
 
 async function verifyLike({ order, account, body }) {
-  // Laravel fetches the post once, up front, and both branches below read from
-  // that same response. Fetching per-branch used to let the v1 path credit a
-  // like on a video that had already been deleted.
-  const post = await getPostInfo(order.url);
-
-  // --- Legacy v1 / confirmed protocol: the client asserts whether it liked ---
-  if (body?.likes_incremented !== undefined && body?.likes_incremented !== null) {
-    if (!post) {
-      return {
-        credited: false,
-        unavailable: true,
-        code: OrderCancelCode.UnavailableVideo,
-        message: 'Video is unavailable. Maybe it has been removed or account is private.',
-      };
-    }
-    if (!order.postPk || order.status !== OrderStatus.Progress) {
-      throw err.unknown('Order is not in progress.');
-    }
-    if (body.likes_incremented !== true && body.likes_incremented !== 'true') {
-      return { credited: false, already: true };
-    }
-    return { credited: true };
+  // Same reasoning as verifyFollow: `body.likes_incremented` used to short-circuit
+  // this whole function and pay out on the client's word alone, so a like task cost
+  // nothing to "complete". It is ignored now; the stored snapshot below is the
+  // evidence. The client must prime that snapshot via POST /v6/posts/url before the
+  // user taps Like.
+  if (!order.postPk || order.status !== OrderStatus.Progress) {
+    throw err.unknown('Order is not in progress.');
   }
+
+  // Laravel fetches the post once, up front, and the checks below all read from
+  // that same response. Fetching per-branch used to let a credit land on a video
+  // that had already been deleted.
+  const post = await getPostInfo(order.url);
 
   // --- v2 protocol: compare the live like count to the stored snapshot ---
   if (!post) {
@@ -179,15 +169,17 @@ async function verifyLike({ order, account, body }) {
 // ---------------------------------------------------------------------------
 
 async function verifyFollow({ order, account, body }) {
-  // --- Confirmed follow protocol: client verified action completion on TikTok ---
-  if (body?.follow_incremented !== undefined && body?.follow_incremented !== null) {
-    if (!order.username || order.status !== OrderStatus.Progress) {
-      throw err.unknown('Order is not in progress.');
-    }
-    if (body.follow_incremented !== true && body.follow_incremented !== 'true') {
-      return { credited: false, already: true };
-    }
-    return { credited: true };
+  // The viewer's own following counter is the ONLY source of truth.
+  //
+  // An earlier build (a faithful port of the Laravel "confirmed follow protocol")
+  // short-circuited here whenever the client sent `follow_incremented`, returning
+  // `credited: true` without asking TikTok anything. Because the Android client
+  // hard-codes that flag to `true`, every single tap on Follow paid out instantly:
+  // the user could farm unlimited coins without following anyone, and the boost
+  // order they were supposed to fill never advanced. `body.follow_incremented` is
+  // now ignored outright — the counters below are the evidence.
+  if (!order.username || order.status !== OrderStatus.Progress) {
+    throw err.unknown('Order is not in progress.');
   }
 
   // Check the viewer's anchor count in follow_counts.

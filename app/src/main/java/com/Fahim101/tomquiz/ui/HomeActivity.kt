@@ -514,10 +514,15 @@ class HomeActivity : AppCompatActivity() {
         if (url.isNullOrBlank()) return
 
         listOf(R.id.iv_top_avatar, R.id.iv_more_avatar).forEach { id ->
+            val target = findViewById<ImageView>(id) ?: return@forEach
             Glide.with(this)
                 .load(url)
+                // Without these a failed load leaves a silent empty ring, and a
+                // TikTok CDN URL is time-signed (~2 days) so it WILL eventually 403.
+                .placeholder(R.drawable.tt_surface_elevated)
+                .error(R.drawable.tt_surface_elevated)
                 .centerCrop()
-                .into(findViewById<ImageView>(id))
+                .into(target)
         }
     }
 
@@ -603,6 +608,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var scrollTask: android.widget.ScrollView
     private lateinit var layoutTipsBody: LinearLayout
     private lateinit var btnTipsToggle: ImageView
+    private lateinit var swipeTasks: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
     /** The queue of tasks returned by the feed, and the one currently on screen. */
     private val taskQueue = ArrayDeque<SocialBoostApi.TaskItem>()
@@ -611,6 +617,13 @@ class HomeActivity : AppCompatActivity() {
     private var pendingVerificationTask: SocialBoostApi.TaskItem? = null
     private var taskOpenedTimestamp: Long = 0L
     private var hasActionBeenOpened = false
+
+    /**
+     * Set once we have drained a fetched page and asked the server for more.
+     * Stops "queue empty -> refetch -> still empty" from looping forever, while
+     * still giving the user a second page instead of a premature "No tasks".
+     */
+    private var drainedPageRefetched = false
 
     private fun setupTasksScreen() {
         tvTaskUsername = findViewById(R.id.tv_task_username)
@@ -625,6 +638,16 @@ class HomeActivity : AppCompatActivity() {
         scrollTask = findViewById(R.id.scroll_task)
         layoutTipsBody = findViewById(R.id.layout_tips_body)
         btnTipsToggle = findViewById(R.id.btn_tips_toggle)
+        swipeTasks = findViewById(R.id.swipe_tasks)
+
+        // "Pull to retry" has to actually retry. The empty state used to tell the
+        // user to pull while nothing listened for the gesture, so a failed or
+        // exhausted feed was a dead end until the app was restarted.
+        swipeTasks.setColorSchemeColors(getColor(R.color.tt_pink), getColor(R.color.tt_blue))
+        swipeTasks.setProgressBackgroundColorSchemeColor(getColor(R.color.tt_surface_elevated))
+        swipeTasks.setOnRefreshListener { loadTasks() }
+        // Tapping the empty state is the discoverable equivalent of the swipe.
+        layoutTaskEmpty.setOnClickListener { loadTasks() }
 
         // Collapse / expand the Tips card.
         btnTipsToggle.setOnClickListener {
@@ -1195,12 +1218,24 @@ class HomeActivity : AppCompatActivity() {
         finish()
     }
 
-    /** Pull a fresh page of tasks and show the first one. */
-    private fun loadTasks() {
+    /**
+     * Pull a fresh page of tasks and show the first one.
+     * @param showSpinner false when we are topping up after draining a page — the
+     *   card that was just completed should stay on screen rather than flash away.
+     */
+    private fun loadTasks(showSpinner: Boolean = true) {
         val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
         if (token.isNullOrBlank()) {
+            swipeTasks.isRefreshing = false
             showTaskState(loading = false, message = "Sign in to start earning coins.")
             return
+        }
+
+        // A swipe-refresh keeps the current card on screen; only a cold load (no
+        // task on screen) shows the full-screen spinner. Otherwise pulling replaces
+        // the card with a spinner and the screen appears to reset.
+        if (showSpinner && !swipeTasks.isRefreshing && currentTask == null) {
+            showTaskState(loading = true)
         }
 
         Thread {
@@ -1210,6 +1245,7 @@ class HomeActivity : AppCompatActivity() {
                 val tasks = SocialBoostApi.fetchTasks(token, secUid, handle)
 
                 runOnUiThread {
+                    swipeTasks.isRefreshing = false
                     taskQueue.clear()
                     taskQueue.addAll(tasks)
                     showNextTask()
@@ -1217,6 +1253,7 @@ class HomeActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.w("HomeActivity", "Task feed failed: ${e.message}")
                 runOnUiThread {
+                    swipeTasks.isRefreshing = false
                     showTaskState(loading = false, message = "Could not load tasks. Pull to retry.")
                 }
             }
@@ -1230,10 +1267,19 @@ class HomeActivity : AppCompatActivity() {
         currentTask = next
 
         if (next == null) {
+            // We only fetched one page. The server still holds tasks we have not been
+            // credited for, so ask for them before declaring the screen empty —
+            // otherwise tasks run out after ~10 and never come back on their own.
+            if (!drainedPageRefetched) {
+                drainedPageRefetched = true
+                loadTasks(showSpinner = false)
+                return
+            }
             showTaskState(loading = false, message = getString(R.string.tt_no_tasks))
             return
         }
 
+        drainedPageRefetched = false
         layoutTaskEmpty.visibility = View.GONE
         scrollTask.visibility = View.VISIBLE
 
@@ -1255,17 +1301,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showTaskState(loading: Boolean, message: String? = null) {
-        if (loading) {
-            scrollTask.visibility = View.GONE
-            layoutTaskEmpty.visibility = View.VISIBLE
-            progressTaskLoading.visibility = View.VISIBLE
-            tvTaskEmpty.text = getString(R.string.tt_loading_tasks)
+        scrollTask.visibility = View.GONE
+        layoutTaskEmpty.visibility = View.VISIBLE
+        progressTaskLoading.visibility = if (loading) View.VISIBLE else View.GONE
+        tvTaskEmpty.text = if (loading) {
+            getString(R.string.tt_loading_tasks)
         } else {
-            scrollTask.visibility = View.GONE
-            layoutTaskEmpty.visibility = View.VISIBLE
-            progressTaskLoading.visibility = View.GONE
-            tvTaskEmpty.text = message ?: getString(R.string.tt_no_tasks)
+            message ?: getString(R.string.tt_no_tasks)
         }
+        // A spinner left running would block the next swipe gesture.
+        if (!loading) swipeTasks.isRefreshing = false
     }
 
     /** Skip: tell the server, then advance to the next task. */
@@ -1322,7 +1367,30 @@ class HomeActivity : AppCompatActivity() {
         hasActionBeenOpened = true
 
         tvTaskFollowLabel.text = "Check ⚡"
-        openTikTokForTask(task)
+
+        // A like is verified by comparing the video's like count before and after, so
+        // the "before" snapshot has to be stored *now* — before the user can possibly
+        // tap Like. TikTok is opened only once the snapshot is saved, otherwise a fast
+        // user could like the video first and the baseline would already include their
+        // own like, permanently denying them the reward.
+        if (task.isLikes) {
+            Thread {
+                try {
+                    SocialBoostApi.primeLikeBaseline(
+                        token = token,
+                        orderId = task.orderId,
+                        url = task.url,
+                        ttUsername = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null).orEmpty(),
+                        secUid = prefs.getString(Constants.KEY_SEC_UID, null)
+                    )
+                } catch (e: Exception) {
+                    Log.w("HomeActivity", "like baseline failed: ${e.message}")
+                }
+                runOnUiThread { openTikTokForTask(task) }
+            }.start()
+        } else {
+            openTikTokForTask(task)
+        }
     }
 
     private fun openTikTokForTask(task: SocialBoostApi.TaskItem) {

@@ -44,6 +44,8 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+    // The Tasks screen's "Pull to retry" is a real gesture now — see layout_screen_tasks.xml.
+    implementation(libs.androidx.swiperefreshlayout)
     testImplementation(libs.junit)
     // The unit-test classpath gets AGP's *mockable* android.jar, in which every
     // framework method — including org.json — throws "not mocked". RequestSignerTest

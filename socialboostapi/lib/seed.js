@@ -396,7 +396,27 @@ export async function runSeed() {
   // state makes the guard false forever, so the remaining tasks are never created
   // and every later run silently reports success. Per-task keys let a re-run finish
   // the job, and make the reported count honest.
-  const targets = ['creator_anna', 'fitness_raj', 'daily_vlog_max', 'chef_lina', 'tech_with_sam'];
+  // The demo task orders are coin-paid ("Free") orders, so they point at a coin-priced
+  // product. `freeFollowers` / `freeLikes` were referenced below but never declared,
+  // so the loop died on its very first iteration with
+  // `ReferenceError: freeFollowers is not defined` — which is exactly why the Home feed
+  // showed "No tasks available" while the seed still reported success.
+  const freeFollowers = await Product.findOne({ oldId: 'coin_follow_100' }).lean();
+  const freeLikes = await Product.findOne({ oldId: 'coin_like_100' }).lean();
+  if (!freeFollowers || !freeLikes) {
+    throw new Error(
+      'seed: coin_follow_100 / coin_like_100 not found — the product seed must run first',
+    );
+  }
+
+  // Enough distinct targets that the feed never runs dry. A task disappears after 3
+  // skips and permanently after being credited, so a five-item feed empties out almost
+  // immediately for a single active tester.
+  const targets = [
+    'creator_anna', 'fitness_raj', 'daily_vlog_max', 'chef_lina', 'tech_with_sam',
+    'music_mia', 'travel_tom', 'foodie_farah', 'gamer_gil', 'art_amber',
+    'sports_sam', 'dance_dina', 'coder_kai', 'pet_pia', 'photo_paul',
+  ];
   let demoTasksCreated = 0;
 
   for (let i = 0; i < targets.length; i++) {
