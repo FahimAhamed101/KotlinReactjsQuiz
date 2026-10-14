@@ -142,4 +142,8 @@
     <color name="holo_ring_2">#7928CA</color>
     <color name="holo_ring_3">#FF007F</color>
     <color name="holo_ring_4">#FF7A00</color>
+
+    <!-- Launcher icon: the background of the supplied artwork, used as the
+         adaptive-icon background layer so it matches the legacy square. -->
+    <color name="ic_launcher_background">#0A073C</color>
 </resources>

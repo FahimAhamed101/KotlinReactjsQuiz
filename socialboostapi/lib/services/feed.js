@@ -23,9 +23,39 @@ const orderInclude = {
 };
 
 /**
+ * Serve the viewer's feed, and never let it stay empty because of skips alone.
+ *
+ * A skip is meant to mean "not this one, right now" — it is a *deferral*, not a
+ * permanent ban. With the real app that distinction never mattered, because other
+ * users are constantly creating orders and the feed refills itself. In a demo /
+ * launch environment there are only a handful of circulating orders, so a viewer
+ * who skips each of the 3-times reaches the tombstone on every single task and the
+ * feed is then empty *forever* — which is exactly the "no task available" bug:
+ * all 15 demo orders were sitting at skip count 3 for this account.
+ *
+ * So when the well is genuinely dry AND the reason is exhausted skips, we forgive
+ * the skips and serve the tasks again. The `< 3` fallback and the normal loop are
+ * both tried first, so this never overrides a feed that has anything to offer.
+ *
  * @param {{userId:number, accountId:number|null, username:string|null, page:number, perPage:number}} ctx
  */
-export async function getFeed({ userId, accountId, username, page = 1, perPage = 10 }) {
+export async function getFeed(ctx) {
+  const first = await collectFeed(ctx);
+  if (first.items.length > 0 || !ctx.accountId) return first;
+
+  const exhausted = await db.skipCount.find({
+    where: { accountId: ctx.accountId, count: { gte: SKIP_REAPPEAR_THRESHOLD } },
+    limit: 1,
+  });
+  if (exhausted.length === 0) return first; // nothing to forgive — the feed is truly empty
+
+  await db.skipCount.deleteMany({
+    where: { accountId: ctx.accountId, count: { gte: SKIP_REAPPEAR_THRESHOLD } },
+  });
+  return collectFeed(ctx);
+}
+
+async function collectFeed({ userId, accountId, username, page = 1, perPage = 10 }) {
   const items = [];
 
   for (const priority of [OrderPriority.Normal, OrderPriority.Low]) {
