@@ -201,6 +201,7 @@ class HomeActivity : AppCompatActivity() {
             onPurchaseFailed = { errorMessage ->
                 setBillingStatus(errorMessage, isError = true)
                 Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+                withdrawUnpaidPlayOrder()
             },
             onPurchasePending = { _ ->
                 setBillingStatus(
@@ -216,6 +217,7 @@ class HomeActivity : AppCompatActivity() {
             onProductUnavailable = { _, reason ->
                 setBillingStatus(reason, isError = true)
                 showBillingProblemDialog(reason)
+                withdrawUnpaidPlayOrder()
             },
             onCatalogStateChanged = { isReady, status ->
                 setBillingStatus(status, isError = !isReady)
@@ -625,6 +627,17 @@ class HomeActivity : AppCompatActivity() {
      */
     private var drainedPageRefetched = false
 
+    /**
+     * Which page of the feed to request next.
+     *
+     * The feed is filtered per viewer — a task leaves it as soon as the viewer skips
+     * it — so the only way to keep seeing tasks is to walk the pages rather than
+     * re-asking for page 1. This used to be hardcoded to 1 on every request, which
+     * is why the queue died after ~10 tasks and never came back until the skips were
+     * cleared. Reset to 1 by a pull-to-refresh.
+     */
+    private var nextPage = 1
+
     private fun setupTasksScreen() {
         tvTaskUsername = findViewById(R.id.tv_task_username)
         ivTaskAvatar = findViewById(R.id.iv_task_avatar)
@@ -645,9 +658,18 @@ class HomeActivity : AppCompatActivity() {
         // exhausted feed was a dead end until the app was restarted.
         swipeTasks.setColorSchemeColors(getColor(R.color.tt_pink), getColor(R.color.tt_blue))
         swipeTasks.setProgressBackgroundColorSchemeColor(getColor(R.color.tt_surface_elevated))
-        swipeTasks.setOnRefreshListener { loadTasks() }
+        // A pull-to-refresh means "start over from the top of the feed".
+        swipeTasks.setOnRefreshListener {
+            nextPage = 1
+            drainedPageRefetched = false
+            loadTasks(pageToLoad = 1)
+        }
         // Tapping the empty state is the discoverable equivalent of the swipe.
-        layoutTaskEmpty.setOnClickListener { loadTasks() }
+        layoutTaskEmpty.setOnClickListener {
+            nextPage = 1
+            drainedPageRefetched = false
+            loadTasks(pageToLoad = 1)
+        }
 
         // Collapse / expand the Tips card.
         btnTipsToggle.setOnClickListener {
@@ -1202,6 +1224,49 @@ class HomeActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * Withdraw the order that was created before Google Play was launched, when the
+     * purchase did not go through.
+     *
+     * The order is created first and paid second, so every failed or abandoned
+     * payment otherwise leaves a Pending row behind. It is not served in the task
+     * feed (only Progress orders are) and /payment/notify never receives a token for
+     * it, so it can never be activated — the user just sees "I ordered followers and
+     * nothing is happening". Nothing was charged either way, so removing it is the
+     * honest response.
+     */
+    private fun withdrawUnpaidPlayOrder() {
+        val orderId = pendingPlayOrderId
+        if (orderId <= 0) return
+        pendingPlayOrderId = 0
+
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
+        if (token.isNullOrBlank()) return
+
+        Thread {
+            try {
+                SocialBoostApi.cancelOrder(token, orderId)
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Payment not completed — order #$orderId was cancelled. Nothing was charged.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: Exception) {
+                Log.w("HomeActivity", "cancel pending order $orderId failed: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Payment not completed — nothing was charged. Order #$orderId is still listed as unpaid; " +
+                            "open My orders to withdraw it.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
+    }
+
     /** Clear the session so the next launch shows the sign-in screen. */
     private fun signOut() {
         prefs.edit()
@@ -1219,11 +1284,18 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Pull a fresh page of tasks and show the first one.
+     * Pull a page of tasks and show the first one.
+     *
+     * `pageToLoad` decides which page to ask for. The feed is filtered per viewer —
+     * a task leaves it the moment the viewer skips it — so re-asking for page 1 after
+     * draining it always comes back empty. When the queue drains we therefore walk
+     * forward (page 2, 3, …) rather than asking for page 1 again. `nextPage` remembers
+     * where to continue from; a pull-to-refresh restarts at page 1.
+     *
      * @param showSpinner false when we are topping up after draining a page — the
      *   card that was just completed should stay on screen rather than flash away.
      */
-    private fun loadTasks(showSpinner: Boolean = true) {
+    private fun loadTasks(showSpinner: Boolean = true, pageToLoad: Int = nextPage) {
         val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
         if (token.isNullOrBlank()) {
             swipeTasks.isRefreshing = false
@@ -1242,12 +1314,16 @@ class HomeActivity : AppCompatActivity() {
             try {
                 val secUid = prefs.getString(Constants.KEY_SEC_UID, null)
                 val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
-                val tasks = SocialBoostApi.fetchTasks(token, secUid, handle)
+                val page = SocialBoostApi.fetchTasks(token, secUid, handle, pageToLoad)
 
                 runOnUiThread {
                     swipeTasks.isRefreshing = false
                     taskQueue.clear()
-                    taskQueue.addAll(tasks)
+                    taskQueue.addAll(page.items)
+                    // Continue from the next page once this one is drained. If the
+                    // server says there is nothing more, stay put and let the next
+                    // drain re-ask page 1 (the self-healing path below).
+                    nextPage = if (page.hasNext) page.page + 1 else 1
                     showNextTask()
                 }
             } catch (e: Exception) {
@@ -1270,8 +1346,15 @@ class HomeActivity : AppCompatActivity() {
             // We only fetched one page. The server still holds tasks we have not been
             // credited for, so ask for them before declaring the screen empty —
             // otherwise tasks run out after ~10 and never come back on their own.
+            //
+            // This is also why Skip used to look broken: the refetch was silent, so
+            // skipping the last card on a page left the *same* card on screen for the
+            // whole round-trip. On a cold Vercel start that is seconds of a button
+            // that appears dead. Show a spinner so the tap is visibly acknowledged.
             if (!drainedPageRefetched) {
                 drainedPageRefetched = true
+                currentTask = null
+                showTaskState(loading = true, message = "Finding more tasks…")
                 loadTasks(showSpinner = false)
                 return
             }
@@ -1305,7 +1388,9 @@ class HomeActivity : AppCompatActivity() {
         layoutTaskEmpty.visibility = View.VISIBLE
         progressTaskLoading.visibility = if (loading) View.VISIBLE else View.GONE
         tvTaskEmpty.text = if (loading) {
-            getString(R.string.tt_loading_tasks)
+            // A caller-supplied message distinguishes "fetching the next page after
+            // you skipped the last card" from the initial cold load.
+            message ?: getString(R.string.tt_loading_tasks)
         } else {
             message ?: getString(R.string.tt_no_tasks)
         }
@@ -1320,6 +1405,11 @@ class HomeActivity : AppCompatActivity() {
 
         pendingVerificationTask = null
         hasActionBeenOpened = false
+        // A tap on Follow puts the verifier in flight; if the user then skips, that
+        // in-flight check belongs to a task that is no longer on screen. Leaving
+        // isVerifying set used to block every later verification on this screen —
+        // the Follow button silently did nothing until the app was restarted.
+        isVerifying = false
 
         // Advance immediately — the skip call is fire-and-forget.
         showNextTask()

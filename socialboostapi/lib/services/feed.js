@@ -62,6 +62,9 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
     // "Special" orders are only eligible on the first page.
     const types = page === 1 ? ['Special', 'Premium', 'Free'] : ['Premium', 'Free'];
 
+    // Fetch generously and filter in JS: `isAlreadyCredited` / `isSkipped` are
+    // per-viewer exclusions that cannot be expressed in one Mongo query, so a tight
+    // `limit` here would silently truncate the page. The Progress set is small.
     const candidates = await db.order.find({
       where: {
         status: OrderStatus.Progress,
@@ -71,7 +74,7 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
       },
       include: orderInclude,
       sort: { id: 'desc' },
-      limit: perPage * 3,
+      limit: 1000,
     });
 
     const eligible = [];
@@ -79,24 +82,36 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
       if (await isAlreadyCredited(userId, accountId, order)) continue;
       if (await isSkipped(accountId, order.id)) continue;
       eligible.push(order);
-      if (eligible.length >= perPage) break;
     }
 
-    if (eligible.length > 0) {
-      items.push(...eligible);
-      return { items, hasNext: eligible.length >= perPage, page, usedFallback: false };
+    // Laravel calls ->paginate($limit) here, i.e. a real offset. This port read the
+    // `page` parameter, echoed it back in the envelope, and then never used it — every
+    // request returned the first `perPage` eligible orders, so with 15 orders in
+    // circulation the feed served the same 10 forever and the other 5 were unreachable,
+    // and `has_next` was permanently true. Paginate the filtered list.
+    const start = (page - 1) * perPage;
+    const slice = eligible.slice(start, start + perPage);
+
+    if (slice.length > 0) {
+      items.push(...slice);
+      return { items, hasNext: eligible.length > start + perPage, page, usedFallback: false };
     }
   }
 
   // --- Fallback: orders this account skipped, until skipped 3x ---
   if (accountId) {
+    // Same offset as above: the fallback must page too, or re-requesting it returns
+    // the same rows.
+    const start = (page - 1) * perPage;
     const skips = await db.skipCount.find({
       where: { accountId, count: { lt: SKIP_REAPPEAR_THRESHOLD } },
       sort: { id: 'asc' },
+      skip: start,
       limit: perPage,
     });
 
     if (skips.length > 0) {
+      // Ask for one extra so `hasNext` is a real answer rather than a guess.
       const fallbackOrders = await db.order.find({
         where: {
           id: { in: skips.map((s) => s.orderId) },
@@ -106,12 +121,13 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
         },
         include: orderInclude,
         sort: { id: 'asc' },
-        limit: perPage,
+        limit: perPage + 1,
       });
 
+      const slice = fallbackOrders.slice(0, perPage);
       return {
-        items: fallbackOrders,
-        hasNext: fallbackOrders.length >= perPage,
+        items: slice,
+        hasNext: fallbackOrders.length > perPage,
         page,
         usedFallback: true,
       };

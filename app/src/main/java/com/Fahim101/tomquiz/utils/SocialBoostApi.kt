@@ -50,15 +50,39 @@ object SocialBoostApi {
     }
 
     /**
-     * GET /api/v6/orders -> the task feed.
+     * One page of the task feed.
+     *
+     * `hasNext` is the server's own answer to "is there more after this?" — it is the
+     * only signal that lets the client ask for page 2 instead of silently re-asking
+     * for page 1 forever.
+     */
+    data class TaskPage(
+        val items: List<TaskItem>,
+        val hasNext: Boolean,
+        val page: Int
+    )
+
+    /**
+     * GET /api/v6/orders -> one page of the task feed.
      *
      * `rewardCoins` comes from `preferences.follow` / `preferences.like`, which is
      * the same setting the server pays out — so the "+5" on the button is never a
      * hardcoded lie.
+     *
+     * The page MUST be requested explicitly. The feed is filtered per viewer: a task
+     * disappears from it as soon as the viewer skips it, so re-fetching page 1 after
+     * draining it returns nothing. That used to be exactly what happened — the page
+     * number was hardcoded to 1, so the queue ran dry after ~10 tasks and the feed
+     * never recovered until the app was restarted and the skips were cleared.
      */
-    fun fetchTasks(token: String, secUid: String?, username: String?): List<TaskItem> {
+    fun fetchTasks(
+        token: String,
+        secUid: String?,
+        username: String?,
+        page: Int = 1
+    ): TaskPage {
         val query = buildString {
-            append("/api/v6/orders?page=1")
+            append("/api/v6/orders?page=").append(page)
             if (!secUid.isNullOrBlank()) append("&sec_uid=").append(secUid)
             if (!username.isNullOrBlank()) append("&username=").append(username)
         }
@@ -86,7 +110,10 @@ object SocialBoostApi {
                 )
             )
         }
-        return tasks
+        // `has_next` is absent when the server omits it; treat absence as "nothing more",
+        // which is the safe direction — it can only cost one extra request.
+        val hasNext = data.optBoolean("has_next", false)
+        return TaskPage(items = tasks, hasNext = hasNext, page = page)
     }
 
     /** One purchasable TikTok boost package in the Store. */
@@ -295,6 +322,21 @@ object SocialBoostApi {
             if (!googleOrderId.isNullOrBlank()) put("google_order_id", googleOrderId)
         }
         return call("POST", "/api/v6/payment/notify", body, token)
+    }
+
+    /**
+     * DELETE /api/v6/orders/{id} -> withdraw a pending, unpaid order.
+     *
+     * The order is created before Google Play is launched, so a failed or abandoned
+     * payment (including ITEM_UNAVAILABLE when the product is not published on this
+     * track) leaves a Pending row with purchaseToken = null. Nothing was charged,
+     * but that row can never be activated: it is not served in the task feed and
+     * /payment/notify never receives a token for it. Call this to clean it up so
+     * the user's order list reflects reality instead of showing a phantom order.
+     */
+    fun cancelOrder(token: String, orderId: Int) {
+        val body = JSONObject().apply { put("order_id", orderId) }
+        call("DELETE", "/api/v6/orders/$orderId", body, token)
     }
 
     /**
