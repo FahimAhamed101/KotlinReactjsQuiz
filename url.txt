@@ -1,0 +1,8 @@
+  * Base URL of the SocialBoost API.
+     *
+     * 10.0.2.2 is the host machine as seen from the Android emulator. On a
+     * physical device with `adb reverse tcp:4000 tcp:4000`, 127.0.0.1:4000 forwards over USB to the dev PC.
+     * Deployed production endpoint on Vercel.
+     */
+    val TTBOOST_API_URL: String
+        get() = if (isEmulator()) "http://10.0.2.2:4000" else "http://192.168.0.101:4000"

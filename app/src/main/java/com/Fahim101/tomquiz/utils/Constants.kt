@@ -34,6 +34,12 @@ object Constants {
     /**
      * Base URL of the SocialBoost API.
      * Deployed production endpoint on Vercel.
+     *
+     * Note: the Vercel deployment does NOT have RAPID_API_KEY set, so it returns
+     * the dev stub profile (placeholder avatar, invented follower counts) rather
+     * than the real TikTok data. To see the real profile, either set that env var
+     * in the Vercel project, or point this at the local backend and run it with
+     * `next dev -p 4000 -H 0.0.0.0`.
      */
     const val TTBOOST_API_URL: String = "https://kotlin-reactjs-quiz-xi.vercel.app"
 
@@ -74,6 +80,9 @@ object Constants {
 
     const val KEY_AUTH_TOKEN = "ttboost_auth_token"
     const val KEY_SEC_UID = "ttboost_sec_uid"
+
+    /** `tiktok_info.avatarLarger` captured at login — the user's profile picture. */
+    const val KEY_AVATAR_URL = "ttboost_avatar_url"
     const val KEY_TIKTOK_USERNAME = "ttboost_tiktok_username"
     const val KEY_LOGIN_ID = "ttboost_login_id"
 

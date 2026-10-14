@@ -127,6 +127,7 @@ class MainActivity : AppCompatActivity() {
                 tiktok?.optString("uniqueId")?.ifBlank { null } ?: fallbackUsername
             )
             .putString(Constants.KEY_SEC_UID, tiktok?.optString("secUid"))
+            .putString(Constants.KEY_AVATAR_URL, tiktok?.optString("avatarLarger")?.ifBlank { null })
             .putString(Constants.USER_NAME, tiktok?.optString("nickname")?.ifBlank { null } ?: fallbackUsername)
             .apply()
     }

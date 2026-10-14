@@ -489,12 +489,35 @@ class HomeActivity : AppCompatActivity() {
     private fun setupTopBar() {
         tvGreeting.text = "Hello, $userName 👋"
         updateCoinsDisplay()
+        loadProfileAvatar()
 
         // The cached balance is only a placeholder until the server answers.
         refreshCoinsFromServer(silent = true)
 
         findViewById<View>(R.id.chip_coins).setOnClickListener {
             refreshCoinsFromServer(silent = false)
+        }
+    }
+
+    /**
+     * Paint the signed-in user's TikTok avatar into both avatar rings.
+     *
+     * The URL is captured at login from `tiktok_info.avatarLarger`. Nothing used to
+     * read it, so `iv_top_avatar` and `iv_more_avatar` rendered as empty rings even
+     * when the server had sent a URL.
+     *
+     * Note the server only returns a real avatar when a live TikTok provider is
+     * configured (RAPID_API_KEY); otherwise it substitutes a placeholder.
+     */
+    private fun loadProfileAvatar() {
+        val url = prefs.getString(Constants.KEY_AVATAR_URL, null)
+        if (url.isNullOrBlank()) return
+
+        listOf(R.id.iv_top_avatar, R.id.iv_more_avatar).forEach { id ->
+            Glide.with(this)
+                .load(url)
+                .centerCrop()
+                .into(findViewById<ImageView>(id))
         }
     }
 

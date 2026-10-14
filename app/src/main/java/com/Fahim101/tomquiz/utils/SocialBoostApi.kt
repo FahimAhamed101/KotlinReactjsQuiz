@@ -365,7 +365,10 @@ object SocialBoostApi {
                     type = o.optString("type", ""),
                     gain = o.optInt("gain", 0),
                     lost = o.optInt("lost", 0),
-                    username = o.optString("username", "").ifBlank { null },
+                    // org.json's optString turns a JSON null into the literal "null",
+                    // which used to surface in the ledger as "@null".
+                    username = if (o.isNull("username")) null
+                    else o.optString("username", "").ifBlank { null },
                     createdAt = o.optString("created_at", "")
                 )
             )
