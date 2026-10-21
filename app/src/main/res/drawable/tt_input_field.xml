@@ -7,5 +7,5 @@
     <corners android:radius="14dp" />
     <stroke
         android:width="1.5dp"
-        android:color="@color/tt_pink_dim" />
+        android:color="@color/tt_accent_dim" />
 </shape>

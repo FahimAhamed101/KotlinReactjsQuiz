@@ -1,11 +1,30 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.TomQuiz" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primary_indigo</item>
-        <item name="colorPrimaryVariant">@color/primary_indigo_dark</item>
-        <item name="colorSecondary">@color/accent_cyan</item>
-        <item name="android:statusBarColor">@color/bg_dark</item>
-        <item name="android:navigationBarColor">@color/bg_dark</item>
+        <!--
+          colorPrimary is not decoration. On Android 12+ the system derives the status-bar
+          and navigation-bar tint from it when the window does not pin its own opaque
+          colours (and `android:statusBarColor` is ignored outright once the app targets 35
+          and goes edge-to-edge by default). Leaving it at the old indigo is what produced a
+          lavender status bar over a navy app - the system was tinting the bars from a colour
+          that no longer matched the UI at all.
+        -->
+        <item name="colorPrimary">@color/tt_accent</item>
+        <item name="colorPrimaryVariant">@color/tt_accent_dim</item>
+        <item name="colorSecondary">@color/tt_accent_light</item>
+
+        <!--
+          The bars are pinned to the top-bar navy rather than the deeper page background, so
+          there is no visible seam between the bar and the header. Kept alongside explicit
+          window calls in code: on the Android versions that ignore this attribute the code is
+          what actually decides, and on the versions that honour it the code is a no-op.
+        -->
+        <item name="android:statusBarColor">@color/tt_top_bar</item>
+        <item name="android:navigationBarColor">@color/tt_top_bar</item>
+        <!-- Light icons, because both bars are dark. Declaring this stops the system from
+             picking dark icons and making the clock invisible. -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">@color/bg_dark</item>
     </style>
 

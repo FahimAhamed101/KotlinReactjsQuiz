@@ -33,7 +33,7 @@
             android:paddingEnd="9dp"
             android:paddingBottom="3dp"
             android:text="Followers"
-            android:textColor="@color/tt_pink"
+            android:textColor="@color/tt_accent"
             android:textSize="11sp"
             android:textStyle="bold" />
 

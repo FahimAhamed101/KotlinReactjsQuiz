@@ -14,5 +14,5 @@
         android:endColor="@color/card_grad_end" />
     <stroke
         android:width="1.2dp"
-        android:color="#33818CF8" />
+        android:color="#3360A5FA" />
 </shape>

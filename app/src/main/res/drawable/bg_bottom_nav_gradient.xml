@@ -20,9 +20,9 @@
             <gradient
                 android:angle="0"
                 android:type="linear"
-                android:startColor="#3300F2FE"
-                android:centerColor="#33818CF8"
-                android:endColor="#33FF007F" />
+                android:startColor="#3322D3EE"
+                android:centerColor="#3360A5FA"
+                android:endColor="#332563EB" />
         </shape>
     </item>
 </layer-list>

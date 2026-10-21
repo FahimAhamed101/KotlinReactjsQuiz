@@ -177,7 +177,7 @@
                 android:text="↺  Restore my purchases"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                android:textColor="@color/tt_pink"
+                android:textColor="@color/tt_accent"
                 android:background="@drawable/btn_outline"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"

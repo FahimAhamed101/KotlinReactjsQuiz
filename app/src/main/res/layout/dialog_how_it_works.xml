@@ -86,7 +86,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
                 android:text="@string/tt_how_buy_title"
-                android:textColor="@color/tt_pink"
+                android:textColor="@color/tt_accent"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 

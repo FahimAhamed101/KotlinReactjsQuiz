@@ -2,7 +2,7 @@
 <!-- The numbered circle in front of each instruction step. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
-    <solid android:color="@color/tt_pink" />
+    <solid android:color="@color/tt_accent" />
     <size
         android:width="22dp"
         android:height="22dp" />

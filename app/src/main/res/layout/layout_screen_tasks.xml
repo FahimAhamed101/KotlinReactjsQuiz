@@ -46,7 +46,7 @@
                 android:id="@+id/progress_task_loading"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
-                android:indeterminateTint="@color/tt_pink" />
+                android:indeterminateTint="@color/tt_accent" />
 
             <TextView
                 android:id="@+id/tv_task_empty"
@@ -196,7 +196,7 @@
                                 android:layout_gravity="center"
                                 android:contentDescription="Tips"
                                 android:src="@drawable/ic_tip"
-                                app:tint="@color/tt_pink" />
+                                app:tint="@color/tt_accent" />
                         </FrameLayout>
 
                         <TextView

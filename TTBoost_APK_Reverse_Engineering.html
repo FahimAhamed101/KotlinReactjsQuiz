@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TTBoost APK — Reverse Engineering Report</title>
+<style>
+  :root{
+    --ink:#12141c; --muted:#5a6172; --line:#e3e6ef; --bg:#f7f8fc; --card:#ffffff;
+    --accent:#5b4ee5; --accent2:#0f9d8f; --warn:#b4442c; --warnbg:#fdf2ef;
+    --ok:#0f7a52; --okbg:#eefaf3; --code:#f2f3f9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:40px 22px 80px}
+  header{border-bottom:3px solid var(--accent);padding-bottom:22px;margin-bottom:34px}
+  h1{font-size:30px;line-height:1.25;margin:0 0 8px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:14px}
+  h2{font-size:20px;margin:44px 0 12px;letter-spacing:-.01em;padding-bottom:7px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:24px 0 8px;color:var(--accent)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:var(--code);padding:2px 6px;border-radius:4px;font-size:13px;
+       font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:#1c2030;color:#e7eaf5;padding:14px 16px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.55}
+  pre code{background:none;padding:0;color:inherit;font-size:12.5px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#eef0f8;font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:16px 0}
+  .kv{display:grid;grid-template-columns:210px 1fr;gap:6px 16px;font-size:14px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;font-weight:500}
+  .note{border-left:4px solid var(--accent);background:#f1f0fd;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .warn{border-left:4px solid var(--warn);background:var(--warnbg);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .ok{border-left:4px solid var(--ok);background:var(--okbg);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .pill{display:inline-block;background:#eef0f8;border:1px solid var(--line);border-radius:99px;
+        padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}.kv{grid-template-columns:1fr}}
+  .foot{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>TTBoost APK — Reverse Engineering Report</h1>
+  <div class="sub">Static analysis of <code>TTBoost_app-staging-debug.apk</code> · 35&nbsp;MB · 17 DEX files · analysed 14 Oct 2026</div>
+</header>
+
+<h2>1. What this file actually is</h2>
+<p>
+  This is the <strong>original TTBoost Android app</strong> — a “free followers / likes” exchange —
+  not our <code>com.Fahim101.tomquiz</code> build. It is a <strong>debug build</strong>, which is why
+  LeakCanary, Compose tooling and <code>debuggable=true</code> are present.
+</p>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Package</dt><dd><code>com.ttboost.tik.tok.followers.likes</code></dd>
+    <dt>Version</dt><dd><code>8.9-staging</code></dd>
+    <dt>Application class</dt><dd><code>…likes.TTBoostApp</code></dd>
+    <dt>Launcher</dt><dd><code>…likes.home.MainActivity</code></dd>
+    <dt>Backend base URL</dt><dd><code>https://staging.ttboost.app/api/</code></dd>
+    <dt>Build flavour</dt><dd>staging (points at the staging backend, not production)</dd>
+  </dl>
+</div>
+
+<p>
+  The manifest declares an <code>ACTION_VIEW</code> intent filter and a
+  <code>&lt;queries&gt;</code> block listing <code>com.zhiliaoapp.musically</code>,
+  <code>com.ss.android.ugc.tiktok</code> and <code>com.tiktok</code> — i.e. the app
+  <em>opens TikTok for you</em> to perform the follow/like, then comes back. That is exactly the
+  flow our app implements with <code>openTikTokForTask()</code>.
+</p>
+
+<h2>2. Technology stack</h2>
+<p>Determined from <code>META-INF/*.version</code> markers and the DEX string pool.</p>
+
+<div class="grid2">
+  <div class="card">
+    <h3>UI</h3>
+    <p>Jetpack <strong>Compose</strong> + Material 3, with <strong>Slack Circuit</strong> for
+    navigation and <strong>Hilt</strong> for DI. Screen pairs are
+    <code>XxxPresenter</code> / <code>XxxUiFactory</code>.</p>
+    <span class="pill">compose.ui</span><span class="pill">material3</span>
+    <span class="pill">circuit</span><span class="pill">hilt-android</span>
+    <span class="pill">coil</span>
+  </div>
+  <div class="card">
+    <h3>Data</h3>
+    <p><strong>Ktor</strong> HTTP client with a signed-request interceptor, <strong>Room</strong> +
+    <strong>SQLDelight</strong> for local storage, <strong>Paging</strong> for the feed,
+    <strong>DataStore</strong> for preferences, <code>androidx.security-crypto</code> for encrypted storage.</p>
+    <span class="pill">ktor</span><span class="pill">room</span>
+    <span class="pill">sqldelight</span><span class="pill">paging</span><span class="pill">datastore</span>
+  </div>
+  <div class="card">
+    <h3>Firebase</h3>
+    <p>Analytics, Crashlytics, Cloud Messaging (push), Remote Config, App Check (Play Integrity +
+    reCAPTCHA), Performance, Sessions, Installations, ABT, DataTransport.</p>
+  </div>
+  <div class="card">
+    <h3>Background &amp; monetisation</h3>
+    <p>WorkManager workers <code>DiscountWorker</code> and
+    <code>ReEngagementNotificationWorker</code>; Google Play Billing; <strong>Ayetstudios</strong>
+    offerwall SDK (its <code>OfferwallActivity</code> / <code>VideoActivity</code> are in the manifest).</p>
+  </div>
+</div>
+
+<h3>Module layout (from the DEX)</h3>
+<pre><code>com.ttboost.tik.tok.followers.likes
+├── ui/            auth, intro, main, home, settings, faq, language
+├── data/          auth, billing, feed, settings, db (dao, transactions)
+├── domain/        models, usecases
+├── security/      NativeSecretProvider        ← JNI
+├── services/      FCMService
+├── workers/       DiscountWorker, ReEngagementNotificationWorker
+├── initializers/  firebaseUserId, discount
+└── di/            AppModule (Ktor engine, interceptors, base URL)</code></pre>
+
+<h2>3. Backend API</h2>
+<p>
+  The base URL is assembled in <code>AppModule.provideHttpClient</code> as the literal
+  <code>https://staging.ttboost.app/api/</code>, and every endpoint is a relative path appended to it.
+  These are the endpoint strings recovered from the DEX:
+</p>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>login</code> · <code>register</code> · <code>refresh</code></td><td>auth / session</td></tr>
+    <tr><td><code>me</code></td><td>profile + coin balance</td></tr>
+    <tr><td><code>me/orders</code></td><td>the task feed (other users’ in-progress orders)</td></tr>
+    <tr><td><code>me/history</code></td><td>coin ledger</td></tr>
+    <tr><td><code>me/discount</code></td><td>active discount offer</td></tr>
+    <tr><td><code>orders/</code> · <code>orders/reactivate</code> · <code>orders/skip-count</code></td><td>place / reactivate / skip an order</td></tr>
+    <tr><td><code>coins/check</code></td><td><strong>verify a completed follow or like and pay out</strong></td></tr>
+    <tr><td><code>coins/pre-check/follow</code></td><td>pre-flight check before a follow</td></tr>
+    <tr><td><code>coins/purchase</code> · <code>coins/spin</code></td><td>buy coins / spin-to-win</td></tr>
+    <tr><td><code>offers/display</code> · <code>offers/validate</code></td><td>offerwall offers</td></tr>
+    <tr><td><code>app/device-status</code> · <code>device/keyvalue</code></td><td>device registry / remote flags</td></tr>
+    <tr><td><code>server-time</code></td><td>clock sync (see below)</td></tr>
+  </tbody>
+</table>
+
+<div class="ok">
+  <strong>Our port already matches this contract.</strong> Every route above exists in
+  <code>socialboostapi/app/api/v6/</code> with the same name, the same response envelope
+  (<code>is_success</code>, <code>coins_earned</code>, <code>already</code>,
+  <code>need_relogin</code>, <code>is_unavailable</code>) and the same error codes —
+  including <code>WrongHash</code>. The port is faithful.
+</div>
+
+<h2>4. How requests are secured</h2>
+<p>Two independent mechanisms, both of which our port reproduces:</p>
+
+<h3>a. HMAC request signing</h3>
+<p>The app signs every call. Header names recovered from the DEX:</p>
+<pre><code>X-Timestamp      seconds (or ms) — must be within ±60s of the server
+X-Nonce          one-shot random value, replay-protected
+X-Signature      HMAC-SHA256 of  "{METHOD}|{path}|{timestamp}|{nonce}|{json}"
+hash             sha256(HASH_VALUE) — a static second factor
+X-App-Token      the session token
+X-Username       the linked TikTok handle
+X-App-Version-Code
+X-Captcha-Token  when a captcha is required
+X-Firebase-AppCheck
+X-Signature-Resync-Retry / X-Token-Refresh-Retry   retry markers</code></pre>
+
+<p>
+  Because the timestamp is validated against the server clock, the app ships a
+  <code>ttboost_server_clock</code> string and calls <code>server-time</code> — a device with a
+  skewed clock would otherwise have every request rejected.
+</p>
+
+<h3>b. The signing key lives in native code</h3>
+<div class="warn">
+  <code>lib/arm64-v8a/libnative-lib.so</code> exports
+  <code>Java_com_ttboost_tik_tok_followers_likes_security_NativeSecretProvider_getSecretKey</code>.
+  The HMAC secret is <strong>computed inside the .so and returned over JNI</strong>, so it never
+  appears as a plain string in the DEX. That is a deliberate anti-tamper measure: the key cannot be
+  read with a simple string dump, only by disassembling the native library.
+</div>
+
+<h3>c. Anti-fraud and integrity</h3>
+<ul>
+  <li><strong>Emulator / root detection</strong> — strings such as
+      <em>“Virtual disk partitions detected”</em>, <em>“VirtualBox / Hyper-V / KVM kernel modules present”</em>
+      and <em>“Virtualization properties found”</em> come from a <code>VirtualDetector</code> class.</li>
+  <li><strong>Firebase App Check</strong> (Play Integrity / reCAPTCHA Enterprise) plus a
+      <code>X-Firebase-AppCheck</code> header.</li>
+  <li><strong>Google reCAPTCHA</strong> and an <code>X-Captcha-Token</code> header.</li>
+  <li><strong>Bugfender</strong> for remote logging.</li>
+</ul>
+
+<h2>5. The coin / task economy — how it actually works</h2>
+<p>This is the part that matters for our bugs. The loop is:</p>
+
+<pre><code>1. A user BUYS a boost (e.g. 100 followers).
+        -> an order row is created with status = Progress
+
+2. That order is served to OTHER users in their feed  (me/orders)
+        -> each viewer sees "@someone +5 coins"
+
+3. The viewer taps Follow  -> the app opens TikTok on that profile
+        -> the user follows, returns to TTBoost
+
+4. The app calls  coins/check  with the order id
+        -> the server decides whether the action really happened
+        -> if yes: +N coins to the viewer, order progress +1
+
+5. When progress reaches the target the order completes and the
+   buyer has received their followers.</code></pre>
+
+<div class="note">
+  <strong>Key insight:</strong> the coins are paid by <em>the platform</em>, and the followers are
+  delivered by <em>other real users</em>. There is no “instant follower” API anywhere in this APK —
+  a 100-follower order completes only when 100 different people do the task. That is the design, not
+  a missing feature.
+</div>
+
+<h3>How the server verifies a follow (the important bit)</h3>
+<p>
+  The DEX contains an <code>incremented</code> field used by <code>coins/check</code>. Our port
+  originally treated that field as <em>proof</em>: if the client said
+  <code>follow_incremented: true</code>, coins were credited immediately without contacting TikTok.
+  Since the Android client hard-coded that flag to <code>true</code>, every tap on Follow paid out —
+  which is precisely the bug you reported.
+</p>
+<p>The correct check, which our server now performs, is a counter comparison:</p>
+<pre><code>anchor  = the viewer's own "following" count, snapshotted when the feed was served
+current = the viewer's live "following" count, fetched now
+if (current &gt; anchor)  -> a follow really happened -> pay
+else                   -> nothing happened          -> pay nothing</code></pre>
+<p>Likes work the same way, against the target video’s like count.</p>
+
+<h2>6. Screens present in the reference app</h2>
+<p>Recovered from the <code>UiModule</code> provider list — each is a Circuit screen:</p>
+<span class="pill">Intro (onboarding)</span><span class="pill">Login</span><span class="pill">Main</span>
+<span class="pill">Home</span><span class="pill">Earn (tasks)</span><span class="pill">Store</span>
+<span class="pill">Funds</span><span class="pill">Orders</span><span class="pill">Refer &amp; Earn</span>
+<span class="pill">FAQ</span><span class="pill">Settings</span><span class="pill">Language</span>
+<span class="pill">Manage Account</span><span class="pill">Choose Video</span><span class="pill">Add Video</span>
+<span class="pill">Report overlay</span>
+
+<p>
+  Notable extras our app does not have: a <strong>Refer &amp; Earn</strong> screen, an
+  <strong>intro carousel</strong> with a showcase/coach-mark system, an in-app <strong>report</strong>
+  flow, an <strong>Add Video</strong> / <strong>Choose Video</strong> flow (users submit their own
+  content to be boosted), a <strong>Funds</strong> screen, and a
+  <code>CannotFindUsernameOverlay</code> for login errors.
+</p>
+
+<h2>7. Permissions and network policy</h2>
+<table>
+  <thead><tr><th>Permission</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><code>INTERNET</code>, <code>ACCESS_NETWORK_STATE</code></td><td>API + image loading</td></tr>
+    <tr><td><code>POST_NOTIFICATIONS</code>, <code>WAKE_LOCK</code></td><td>push notifications, workers</td></tr>
+    <tr><td><code>READ_PHONE_STATE</code></td><td>device fingerprinting / anti-fraud</td></tr>
+    <tr><td><code>AD_ID</code>, <code>ACCESS_ADSERVICES_*</code></td><td>ads identifier</td></tr>
+    <tr><td><code>RECEIVE_BOOT_COMPLETED</code>, <code>FOREGROUND_SERVICE</code></td><td>WorkManager rescheduling</td></tr>
+    <tr><td><code>READ/WRITE_EXTERNAL_STORAGE</code></td><td>legacy storage</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <strong>Cleartext traffic is explicitly allowed</strong> for these hosts in
+  <code>res/xml/network_security_config.xml</code>:
+  <code>localhost</code>, <code>127.0.0.1</code>, <code>10.0.2.2</code> (emulator loopback),
+  <code>192.168.0.164</code> (a developer LAN machine) and <code>ttboost.app</code>
+  (<code>includeSubdomains</code>).
+  <br /><br />
+  This tells us the TTBoost developers themselves test against a local server on the LAN and against
+  <code>staging.ttboost.app</code> over plain HTTP — the same trick we used when we temporarily
+  pointed our app at <code>http://192.168.0.101:4000</code>.
+</div>
+
+<h2>8. How our app compares</h2>
+<table>
+  <thead><tr><th>Aspect</th><th>Reference APK</th><th>Our app (SocialBoost)</th></tr></thead>
+  <tbody>
+    <tr><td>Package</td><td><code>com.ttboost.tik.tok.followers.likes</code></td><td><code>com.Fahim101.tomquiz</code></td></tr>
+    <tr><td>UI</td><td>Compose + Circuit + Hilt</td><td>XML layouts + ViewFlipper (simpler, fine)</td></tr>
+    <tr><td>HTTP</td><td>Ktor + interceptors</td><td><code>HttpURLConnection</code> + <code>RequestSigner</code></td></tr>
+    <tr><td>Signing</td><td>X-Timestamp / X-Nonce / X-Signature / hash</td><td><strong>identical</strong> ✔</td></tr>
+    <tr><td>API shape</td><td><code>/api/…</code></td><td><code>/api/v6/…</code> (same handlers, versioned)</td></tr>
+    <tr><td>Task feed</td><td><code>me/orders</code></td><td><code>/api/v6/orders</code> ✔</td></tr>
+    <tr><td>Push / crash</td><td>FCM + Crashlytics + Remote Config</td><td>none</td></tr>
+    <tr><td>Anti-fraud</td><td>native secret, emulator detection, App Check, captcha</td><td>HMAC signing only</td></tr>
+    <tr><td>Extra screens</td><td>Refer, Funds, Add Video, Report, Intro</td><td>codes shop instead</td></tr>
+  </tbody>
+</table>
+
+<h2>9. What this analysis changed in our code</h2>
+<ol>
+  <li><strong>Removed the client-trusted payout.</strong> <code>coinsCheck.verifyFollow</code> and
+      <code>verifyLike</code> no longer short-circuit on <code>follow_incremented</code> /
+      <code>likes_incremented</code>; they compare live counters instead.</li>
+  <li><strong>Stopped the client asserting completion</strong> — <code>verifyTask()</code> no longer
+      sends those flags.</li>
+  <li><strong>Prime the like baseline.</strong> A like can only be verified against a “before”
+      snapshot, so the app now calls <code>POST /v6/posts/url</code> before opening TikTok. The
+      reference app does the same thing through its <code>ChooseVideo</code> flow.</li>
+  <li><strong>Fixed the seed crash</strong> that left the feed empty (<code>freeFollowers is not
+      defined</code>).</li>
+  <li><strong>Stopped scraping TikTok on every feed load</strong> — the anchor is now reused for
+      10&nbsp;minutes, which cut the feed from 3.8&nbsp;s to 1.5&nbsp;s.</li>
+  <li><strong>Raised the client timeout</strong> from 12&nbsp;s to 30&nbsp;s so a cold serverless
+      start no longer surfaces as “Could not load tasks”.</li>
+</ol>
+
+<div class="foot">
+  Produced by static analysis only — the APK was never executed. Method: unzip, DEX
+  <code>string_ids</code> extraction, binary AXML parsing of <code>AndroidManifest.xml</code> and
+  <code>res/xml/</code>, and printable-run scanning of the bundled native libraries.
+</div>
+
+</div>
+</body>
+</html>

@@ -52,9 +52,18 @@
     <color name="tt_surface_elevated">#0B1B3A</color>
     <color name="tt_divider">#12234A</color>
 
-    <!-- Primary pink + the dimmer pressed variant -->
-    <color name="tt_pink">#FF0B59</color>
-    <color name="tt_pink_dim">#C4154A</color>
+    <!--
+      Primary accent + the dimmer pressed variant.
+      Blue rather than the old hot pink: pink read as a "spend/win now" colour in a store,
+      and this app asks people to trust it with an account. Blue is the conventional
+      trust colour and it is what the dark navy surfaces were already built around.
+      Renamed from `tt_pink` at the same time — a name that said "pink" while holding a blue
+      value is a trap for whoever edits this next.
+    -->
+    <color name="tt_accent">#2563EB</color>
+    <color name="tt_accent_dim">#1D4ED8</color>
+    <!-- Lighter accent for small text and icons that have to stay legible on navy. -->
+    <color name="tt_accent_light">#60A5FA</color>
 
     <!-- Coin gold -->
     <color name="tt_gold">#FDC90E</color>
@@ -71,18 +80,19 @@
     <color name="tt_text_secondary">#9AA0B5</color>
     <color name="tt_version_text">#B3B6BC</color>
 
-    <!-- Tips card icon chip + warning red -->
-    <color name="tt_tip_red">#FF0B59</color>
-    <color name="tt_icon_chip">#3A0A22</color>
+    <!-- Tips card icon chip + warning red. The warning stays red on purpose — an accent
+         that doubles as the error colour means a real error looks like decoration. -->
+    <color name="tt_tip_red">#FF5C5C</color>
+    <color name="tt_icon_chip">#0B2452</color>
 
-    <!-- Gradient stops: avatar ring (blue -> violet -> pink) -->
-    <color name="tt_ring_start">#2B7EDD</color>
-    <color name="tt_ring_mid">#6A5CB7</color>
-    <color name="tt_ring_end">#D42274</color>
+    <!-- Gradient stops: avatar ring (azure -> indigo -> violet) -->
+    <color name="tt_ring_start">#3B82F6</color>
+    <color name="tt_ring_mid">#4F46E5</color>
+    <color name="tt_ring_end">#7C3AED</color>
 
     <!-- Gradient stops: coin pill hairline border -->
-    <color name="tt_coin_border_start">#2183E4</color>
-    <color name="tt_coin_border_end">#DE1D6D</color>
+    <color name="tt_coin_border_start">#3B82F6</color>
+    <color name="tt_coin_border_end">#6366F1</color>
     <color name="tt_coin_pill">#071537</color>
 
     <!-- Accent chips used by the Store/Settings lists -->
@@ -106,15 +116,18 @@
     <color name="topbar_mid">#12163B</color>
     <color name="topbar_end">#191242</color>
 
-    <!-- Primary CTA: neon punch -> hot magenta -> royal violet -->
-    <color name="cta_start">#FF2A6D</color>
-    <color name="cta_mid">#E11D74</color>
-    <color name="cta_end">#8B5CF6</color>
+    <!-- Primary CTA: azure -> royal blue -> deep blue. Was pink -> magenta -> violet. -->
+    <color name="cta_start">#38BDF8</color>
+    <color name="cta_mid">#2563EB</color>
+    <color name="cta_end">#1E40AF</color>
 
-    <!-- Cash Pill Buttons: Electric Sunset Magenta -> Amethyst -->
-    <color name="pill_cash_start">#FF1361</color>
-    <color name="pill_cash_mid">#F72585</color>
-    <color name="pill_cash_end">#7209B7</color>
+    <!-- Cash Pill Buttons: royal blue -> indigo -> violet. Kept deliberately distinct from
+         the coin pills below — both are blue now, so the difference has to be in the shade:
+         cash is deep and blue-violet, coins are bright and cyan-forward. Making them the
+         same gradient would hide which currency a package is priced in. -->
+    <color name="pill_cash_start">#1D4ED8</color>
+    <color name="pill_cash_mid">#4338CA</color>
+    <color name="pill_cash_end">#6D28D9</color>
 
     <!-- Coin Pill Buttons: Cyber Aqua -> Electric Azure -> Royal Indigo -->
     <color name="pill_coin_start">#00F2FE</color>
@@ -137,11 +150,12 @@
     <color name="discount_grad_start">#FF2E63</color>
     <color name="discount_grad_end">#FF7A00</color>
 
-    <!-- VIP Holographic Avatar Ring: Pure Cyan -> Electric Purple -> Vivid Hot Rose -->
-    <color name="holo_ring_1">#00F2FE</color>
-    <color name="holo_ring_2">#7928CA</color>
-    <color name="holo_ring_3">#FF007F</color>
-    <color name="holo_ring_4">#FF7A00</color>
+    <!-- VIP Holographic Avatar Ring: cyan -> azure -> indigo. The old ramp ended in vivid
+         hot rose, which was the single loudest non-blue thing left on screen. -->
+    <color name="holo_ring_1">#22D3EE</color>
+    <color name="holo_ring_2">#3B82F6</color>
+    <color name="holo_ring_3">#2563EB</color>
+    <color name="holo_ring_4">#1D4ED8</color>
 
     <!-- Launcher icon: the background of the supplied artwork, used as the
          adaptive-icon background layer so it matches the legacy square. -->

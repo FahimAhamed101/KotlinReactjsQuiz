@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -16,6 +17,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.view.LayoutInflater
 import com.Fahim101.tomquiz.ui.HomeActivity
 import com.Fahim101.tomquiz.utils.Avatars
@@ -58,6 +60,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Pin the system bars before anything else. On Android 12+ the system tints them
+        // from `colorPrimary` unless the window pins an opaque colour, and on API 35+
+        // `android:statusBarColor` in the theme is ignored entirely — so this is what keeps
+        // a lavender status bar from appearing over the navy UI.
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = ContextCompat.getColor(this, R.color.tt_top_bar)
+        window.navigationBarColor = ContextCompat.getColor(this, R.color.tt_top_bar)
+        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
 
         prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
 

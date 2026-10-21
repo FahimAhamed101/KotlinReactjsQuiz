@@ -26,7 +26,7 @@
             android:layout_width="26dp"
             android:layout_height="26dp"
             android:src="@drawable/ic_person"
-            app:tint="@color/tt_pink"
+            app:tint="@color/tt_accent"
             android:contentDescription="Type" />
 
         <!-- Count (e.g. +200, +400, +10) -->

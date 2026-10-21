@@ -39,6 +39,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.Fahim101.tomquiz.R
 import com.bumptech.glide.Glide
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.Fahim101.tomquiz.model.CodeItem
 import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.BillingManager
@@ -154,8 +156,38 @@ class HomeActivity : AppCompatActivity() {
     private var btnSubscribe5Usd: Button? = null
     private var activeSubPriceLabel: TextView? = null
 
+    /**
+     * Pin the system bars to the app's navy.
+     *
+     * Necessary because `android:statusBarColor` in the theme is not enough on its own: on
+     * Android 12+ the system derives the bar tint from `colorPrimary` when the window does
+     * not pin an opaque colour, and it ignores the attribute entirely once an app targets
+     * API 35 and defaults to edge-to-edge. The old theme left `colorPrimary` at the previous
+     * indigo, so the system painted the bars with it and the app ended up with a lavender
+     * status bar over a navy UI — measured rgb(208,188,255), the Material baseline purple,
+     * a colour that appears nowhere in this app's palette.
+     *
+     * Setting it here makes it independent of the OS version's behaviour.
+     */
+    private fun applyWindowBars() {
+        val barColor = ContextCompat.getColor(this, R.color.tt_top_bar)
+        val window = this.window ?: return
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = barColor
+        window.navigationBarColor = barColor
+
+        // These two are what actually decide icon contrast on API 23 / 26+. Without them
+        // the system picks dark icons for a dark bar and the clock disappears.
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyWindowBars()
         setContentView(R.layout.activity_home)
 
         prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
@@ -629,7 +661,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** Highlight the active bottom-nav item and flip to its screen. */
     private fun selectTab(index: Int) {
-        val activeColor = ContextCompat.getColor(this, R.color.tt_pink)
+        val activeColor = ContextCompat.getColor(this, R.color.tt_accent)
         val idleColor = ContextCompat.getColor(this, R.color.tt_text_secondary)
 
         val homeActive = index == 0
@@ -745,7 +777,7 @@ class HomeActivity : AppCompatActivity() {
         // "Pull to retry" has to actually retry. The empty state used to tell the
         // user to pull while nothing listened for the gesture, so a failed or
         // exhausted feed was a dead end until the app was restarted.
-        swipeTasks.setColorSchemeColors(getColor(R.color.tt_pink), getColor(R.color.tt_blue))
+        swipeTasks.setColorSchemeColors(getColor(R.color.tt_accent), getColor(R.color.tt_blue))
         swipeTasks.setProgressBackgroundColorSchemeColor(getColor(R.color.tt_surface_elevated))
         // A pull-to-refresh means "start over from the top of the feed".
         swipeTasks.setOnRefreshListener {

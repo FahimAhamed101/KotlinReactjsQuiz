@@ -141,7 +141,7 @@
                 android:layout_marginTop="12dp"
                 android:background="@drawable/btn_outline"
                 android:text="🌐 Open Live Web Demo / Full Details in Browser"
-                android:textColor="@color/tt_pink"
+                android:textColor="@color/tt_accent"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
@@ -297,7 +297,7 @@
                     android:layout_height="46dp"
                     android:background="@drawable/btn_outline"
                     android:text="Apply"
-                    android:textColor="@color/tt_pink"
+                    android:textColor="@color/tt_accent"
                     android:textSize="12sp"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
@@ -493,7 +493,7 @@
                 android:layout_marginTop="10dp"
                 android:background="@drawable/btn_outline"
                 android:text="🔄 Refresh Google Play Products"
-                android:textColor="@color/tt_pink"
+                android:textColor="@color/tt_accent"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 

@@ -50,7 +50,7 @@
                         android:layout_width="12dp"
                         android:layout_height="12dp"
                         android:src="@drawable/ic_heart"
-                        app:tint="@color/tt_pink"
+                        app:tint="@color/tt_accent"
                         android:contentDescription="Likes" />
 
                     <TextView

@@ -206,7 +206,7 @@
                 android:layout_height="26dp"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp"
-                android:indeterminateTint="@color/tt_pink"
+                android:indeterminateTint="@color/tt_accent"
                 android:visibility="gone" />
 
             <TextView
@@ -244,7 +244,7 @@
                 android:layout_height="26dp"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp"
-                android:indeterminateTint="@color/tt_pink"
+                android:indeterminateTint="@color/tt_accent"
                 android:visibility="gone" />
 
             <TextView

@@ -5,5 +5,5 @@
     <solid android:color="#20000000" />
     <stroke
         android:width="2dp"
-        android:color="@color/tt_pink" />
+        android:color="@color/tt_accent" />
 </shape>

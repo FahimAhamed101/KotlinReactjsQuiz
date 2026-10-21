@@ -213,7 +213,7 @@
                 android:layout_height="22dp"
                 android:contentDescription="Tasks"
                 android:src="@drawable/ic_home"
-                app:tint="@color/tt_pink" />
+                app:tint="@color/tt_accent" />
 
             <TextView
                 android:id="@+id/tv_nav_home"
@@ -221,7 +221,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Tasks"
-                android:textColor="@color/tt_pink"
+                android:textColor="@color/tt_accent"
                 android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
