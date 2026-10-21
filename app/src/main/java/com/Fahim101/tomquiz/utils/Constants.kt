@@ -87,6 +87,22 @@ object Constants {
     const val KEY_LOGIN_ID = "ttboost_login_id"
 
     /**
+     * The server's stable avatar URL for a handle: `/api/v6/avatar/<username>`.
+     *
+     * Preferred over the raw TikTok CDN URL because that URL is time-signed and starts
+     * returning 403 after about two days — which is what made the profile picture vanish
+     * on its own. The server serves the mirrored bytes instead, so this URL keeps working.
+     *
+     * Returns null for a blank handle. The caller is expected to fall back to the CDN URL
+     * when this one 404s (older server builds have no such route).
+     */
+    fun avatarUrlFor(username: String?): String? {
+        val handle = username?.trim()?.lowercase()
+        if (handle.isNullOrBlank()) return null
+        return "${TTBOOST_API_URL.trimEnd('/')}/api/v6/avatar/${java.net.URLEncoder.encode(handle, "UTF-8")}"
+    }
+
+    /**
      * Optional server-side receipt verification endpoint (the Node service in /buycodeprobackend).
      * Leave BLANK to run 100% on-device through Google Play Billing.
      * Do NOT point this at the portfolio site - it has no /api/payment/notify route.

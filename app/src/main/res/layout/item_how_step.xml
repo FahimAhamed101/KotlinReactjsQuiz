@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One numbered step in "How it works".
+  Included several times per screen with a different number/text bound in code.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:background="@drawable/tt_card_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="13dp">
+
+    <TextView
+        android:id="@+id/tv_step_number"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:background="@drawable/tt_step_badge"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        tools:text="1" />
+
+    <TextView
+        android:id="@+id/tv_step_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:textColor="@color/tt_text_primary"
+        android:textSize="13sp"
+        android:lineSpacingMultiplier="1.2"
+        tools:text="Open Store and pick a package." />
+</LinearLayout>

@@ -40,6 +40,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.Fahim101.tomquiz.R
 import com.bumptech.glide.Glide
 import com.Fahim101.tomquiz.model.CodeItem
+import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.BillingManager
 import com.Fahim101.tomquiz.utils.Constants
 import com.Fahim101.tomquiz.utils.SocialBoostApi
@@ -92,8 +93,23 @@ class HomeActivity : AppCompatActivity() {
     private val orderHistory = mutableListOf<SocialBoostApi.OrderHistoryItem>()
     private val coinHistory = mutableListOf<SocialBoostApi.CoinHistoryItem>()
 
+    // Tasks screen, second section: the buyer's own orders (same rows as More).
+    private lateinit var taskOrderAdapter: TaskOrderAdapter
+    private lateinit var rvTaskOrders: RecyclerView
+    private var sectionTaskOrders: View? = null
+    private lateinit var tvTaskOrdersCount: TextView
+    private lateinit var tvTaskOrdersEmpty: TextView
+
     /** The histories are fetched lazily the first time More is opened. */
     private var hasLoadedMore = false
+
+    // Daily free coins
+    private var cardDailyReward: View? = null
+    private var tvDailyRewardSubtitle: TextView? = null
+    private var btnDailyClaim: android.widget.Button? = null
+    private var dailyBonusState: SocialBoostApi.DailyBonus? = null
+    private val dailyHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var dailyRunnable: Runnable = Runnable { }
 
     // Buy Codes UI
     private lateinit var rvBuyCodes: RecyclerView
@@ -174,6 +190,11 @@ class HomeActivity : AppCompatActivity() {
         // setupTopBar() runs before the More screen exists, so re-publish the
         // balance now that its views are bound.
         updateCoinsDisplay()
+
+        // The Tasks screen now carries a section of the user's own orders, so it needs them
+        // on first open rather than after a trip to More. `loadMoreData` is guarded, so this
+        // is one fetch for the whole session.
+        loadMoreData()
 
         val targetTab = intent.getStringExtra(Constants.SELECTED_TAB)
         when (targetTab) {
@@ -504,28 +525,89 @@ class HomeActivity : AppCompatActivity() {
     /**
      * Paint the signed-in user's TikTok avatar into both avatar rings.
      *
-     * The URL is captured at login from `tiktok_info.avatarLarger`. Nothing used to
-     * read it, so `iv_top_avatar` and `iv_more_avatar` rendered as empty rings even
-     * when the server had sent a URL.
+     * Two problems made this show the wrong picture (or none):
      *
-     * Note the server only returns a real avatar when a live TikTok provider is
-     * configured (RAPID_API_KEY); otherwise it substitutes a placeholder.
+     * - the URL was captured **once at login** and never refreshed, so a placeholder
+     *   captured during a stub-backed login stayed forever even after the server had the
+     *   real avatar; and
+     * - the captured URL was the raw TikTok CDN one, which is time-signed and starts
+     *   403ing after ~2 days, leaving an empty ring.
+     *
+     * So: render what we have immediately (mirror URL first), then ask the server what it
+     * holds and re-render if the handle/URL changed.
      */
     private fun loadProfileAvatar() {
-        val url = prefs.getString(Constants.KEY_AVATAR_URL, null)
-        if (url.isNullOrBlank()) return
+        val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
+        val cached = prefs.getString(Constants.KEY_AVATAR_URL, null)
 
+        paintAvatar(handle, cached)
+        refreshProfileFromServer()
+    }
+
+    /** Render one account's picture into both rings, falling back down the URL list. */
+    private fun paintAvatar(handle: String?, avatarUrl: String?) {
+        val urls = Avatars.candidates(handle, avatarUrl)
         listOf(R.id.iv_top_avatar, R.id.iv_more_avatar).forEach { id ->
-            val target = findViewById<ImageView>(id) ?: return@forEach
-            Glide.with(this)
-                .load(url)
-                // Without these a failed load leaves a silent empty ring, and a
-                // TikTok CDN URL is time-signed (~2 days) so it WILL eventually 403.
-                .placeholder(R.drawable.tt_surface_elevated)
-                .error(R.drawable.tt_surface_elevated)
-                .centerCrop()
-                .into(target)
+            findViewById<ImageView>(id)?.let { Avatars.load(it, urls, handle) }
         }
+    }
+
+    /**
+     * Ask `/v6/me` for the stored TikTok profile and repaint if it disagrees with what we
+     * cached. Silent by design: a failure here must not disturb the screen, because the
+     * cached avatar is already on display.
+     */
+    private fun refreshProfileFromServer() {
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null) ?: return
+        val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
+        val secUid = prefs.getString(Constants.KEY_SEC_UID, null)
+
+        Thread {
+            try {
+                val profile = SocialBoostApi.fetchProfile(token, handle, secUid)
+
+                if (profile == null) {
+                    // Deployed builds predate `tiktok_info` on /v6/me, so there is no
+                    // profile block to read. The order rows still carry the account's
+                    // picture snapshot, so use the newest real one instead of showing
+                    // nothing at all. Harmless once the server is updated.
+                    val fallback = try {
+                        SocialBoostApi.fetchMyOrders(token)
+                            .mapNotNull { it.image }
+                            .firstOrNull { it.isNotBlank() && !it.contains("picsum") }
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (!fallback.isNullOrBlank()) {
+                        runOnUiThread { paintAvatar(handle, fallback) }
+                    }
+                    return@Thread
+                }
+
+                val resolvedHandle = profile.username ?: handle
+                // Prefer the server's mirror path; keep the CDN URL only as a fallback.
+                val best = profile.avatarUrl
+                    ?: profile.avatarLarger
+                    ?: prefs.getString(Constants.KEY_AVATAR_URL, null)
+
+                val changed = resolvedHandle != handle || best != prefs.getString(Constants.KEY_AVATAR_URL, null)
+                if (!changed) return@Thread
+
+                prefs.edit()
+                    .putString(Constants.KEY_TIKTOK_USERNAME, resolvedHandle)
+                    .putString(Constants.KEY_AVATAR_URL, best)
+                    .putString(Constants.USER_NAME, profile.nickname ?: resolvedHandle)
+                    .apply()
+
+                runOnUiThread {
+                    paintAvatar(resolvedHandle, best)
+                    profile.nickname?.let { tvGreeting.text = "Hello, $it 👋" }
+                }
+            } catch (e: Exception) {
+                // Old server builds return no `tiktok_info` at all; the cached avatar stays.
+                Log.d("HomeActivity", "profile refresh skipped: ${e.message}")
+            }
+        }.start()
     }
 
     private fun updateCoinsDisplay() {
@@ -591,7 +673,14 @@ class HomeActivity : AppCompatActivity() {
             loadCodePrices()
             applyPurchasedState()
         }
-        if (index == 3) loadMoreData()
+        if (index == 3) {
+            loadMoreData()
+            // Re-read the claim state: "claimed today" is a server fact about a day that
+            // may have ticked over since the screen was last open.
+            refreshDailyReward()
+        } else {
+            stopDailyCountdown()
+        }
     }
 
     // ------------------------------------------------------------------
@@ -708,14 +797,221 @@ class HomeActivity : AppCompatActivity() {
         rvCoinHistory.layoutManager = LinearLayoutManager(this)
         rvCoinHistory.adapter = coinHistoryAdapter
 
+        // The same orders, also shown on the Tasks screen beneath the live task card.
+        // Its own list rather than sharing `orderHistory`: two adapters mutating one
+        // backing list is how you get a RecyclerView reading a cleared array mid-layout.
+        taskOrderAdapter = TaskOrderAdapter(mutableListOf())
+        rvTaskOrders = findViewById(R.id.rv_task_orders)
+        rvTaskOrders.layoutManager =
+            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        rvTaskOrders.adapter = taskOrderAdapter
+        sectionTaskOrders = findViewById(R.id.section_task_orders)
+        tvTaskOrdersCount = findViewById(R.id.tv_task_orders_count)
+        tvTaskOrdersEmpty = findViewById(R.id.tv_task_orders_empty)
+
         findViewById<View>(R.id.btn_more_refresh).setOnClickListener {
             refreshCoinsFromServer()
             loadMoreData(force = true)
         }
         findViewById<View>(R.id.btn_more_signout).setOnClickListener { confirmSignOut() }
+        findViewById<View>(R.id.btn_more_how_it_works).setOnClickListener { showHowItWorksDialog() }
+
+        setupDailyReward()
 
         val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
         tvMoreUsername.text = if (handle.isNullOrBlank()) userName else "@$handle"
+    }
+
+    // ------------------------------------------------------------------
+    // More screen: the free daily coin claim
+    // ------------------------------------------------------------------
+
+    /**
+     * Bind the daily-reward card.
+     *
+     * The claimable state is read from the server every time the screen opens. A locally
+     * remembered "already claimed today" would be wrong the moment the day rolls over, and
+     * a locally remembered "claimable" would let someone click a button that only fails.
+     */
+    private fun setupDailyReward() {
+        cardDailyReward = findViewById(R.id.card_daily_reward)
+        tvDailyRewardSubtitle = findViewById(R.id.tv_daily_reward_subtitle)
+        btnDailyClaim = findViewById(R.id.btn_daily_claim)
+
+        btnDailyClaim?.setOnClickListener { claimDailyReward() }
+        refreshDailyReward()
+    }
+
+    /** Ask the server what the claim looks like right now. */
+    private fun refreshDailyReward() {
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
+        if (token.isNullOrBlank()) {
+            cardDailyReward?.visibility = View.GONE
+            return
+        }
+
+        Thread {
+            val bonus = try {
+                SocialBoostApi.fetchDailyBonus(token)
+            } catch (e: Exception) {
+                Log.d("HomeActivity", "daily bonus unavailable: ${e.message}")
+                null
+            }
+
+            runOnUiThread {
+                if (bonus == null) {
+                    // Older server builds have no daily bonus. Hiding the card is better
+                    // than a control that only ever fails and looks broken.
+                    cardDailyReward?.visibility = View.GONE
+                    return@runOnUiThread
+                }
+                dailyBonusState = bonus
+                renderDailyReward()
+            }
+        }.start()
+    }
+
+    private fun renderDailyReward() {
+        val bonus = dailyBonusState ?: return
+        cardDailyReward?.visibility = View.VISIBLE
+
+        val base = getString(R.string.tt_daily_available, bonus.amount)
+        if (bonus.available) {
+            btnDailyClaim?.isEnabled = true
+            btnDailyClaim?.text = getString(R.string.tt_daily_claim)
+            tvDailyRewardSubtitle?.text =
+                if (bonus.streak >= 2) "$base · ${getString(R.string.tt_daily_streak, bonus.streak)}" else base
+            stopDailyCountdown()
+            return
+        }
+
+        btnDailyClaim?.isEnabled = false
+        btnDailyClaim?.text = getString(R.string.tt_daily_claimed)
+        startDailyCountdown()
+    }
+
+    /** One-second ticker toward `nextClaimAt`, refreshed from the server, not the clock. */
+    private fun startDailyCountdown() {
+        val next = dailyBonusState?.nextClaimAt ?: return
+        dailyHandler.removeCallbacks(dailyRunnable)
+
+        dailyRunnable = object : Runnable {
+            override fun run() {
+                val bonus = dailyBonusState ?: return
+                val remaining = bonus.nextClaimAt ?: return
+
+                val left = remaining - System.currentTimeMillis()
+                if (left <= 0) {
+                    refreshDailyReward()
+                    return
+                }
+
+                val hours = left / 3_600_000
+                val minutes = (left % 3_600_000) / 60_000
+                val seconds = (left % 60_000) / 1_000
+                val clock = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+
+                tvDailyRewardSubtitle?.text = getString(R.string.tt_daily_countdown, clock)
+                dailyHandler.postDelayed(this, 1_000)
+            }
+        }
+        dailyHandler.post(dailyRunnable)
+    }
+
+    private fun stopDailyCountdown() {
+        dailyHandler.removeCallbacks(dailyRunnable)
+    }
+
+    private fun claimDailyReward() {
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null) ?: return
+        btnDailyClaim?.isEnabled = false
+        btnDailyClaim?.text = getString(R.string.tt_daily_claiming)
+
+        Thread {
+            try {
+                val result = SocialBoostApi.claimDailyBonus(token)
+                val granted = result.optJSONObject("daily_bonus")?.optInt("granted", 0) ?: 0
+                val freshCoins = result.optJSONObject("user")?.optInt("coins", coinsBalance) ?: coinsBalance
+
+                runOnUiThread {
+                    coinsBalance = freshCoins
+                    updateCoinsDisplay()
+                    Toast.makeText(this, getString(R.string.tt_daily_done, granted), Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                val why = e.message ?: ""
+                runOnUiThread {
+                    Toast.makeText(this, getString(R.string.tt_daily_failed, why), Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                runOnUiThread { refreshDailyReward() }
+            }
+        }.start()
+    }
+
+    // ------------------------------------------------------------------
+    // More screen: how it works
+    // ------------------------------------------------------------------
+
+    /**
+     * The app has two sides that feed each other — a buyer's order becomes a worker's
+     * task — and neither side could see it. This spells it out once.
+     */
+    private fun showHowItWorksDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_how_it_works, null)
+        val dialog = AlertDialog.Builder(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            .setView(view)
+            .setCancelable(true)
+            .create()
+
+        view.findViewById<View>(R.id.btn_how_back).setOnClickListener { dialog.dismiss() }
+
+        bindHowStep(view, R.id.how_step_buy_1, 1, getString(R.string.tt_how_buy_1))
+        bindHowStep(view, R.id.how_step_buy_2, 2, getString(R.string.tt_how_buy_2))
+        bindHowStep(view, R.id.how_step_buy_3, 3, getString(R.string.tt_how_buy_3))
+        bindHowStep(view, R.id.how_step_buy_4, 4, getString(R.string.tt_how_buy_4))
+
+        bindHowStep(view, R.id.how_step_earn_1, 1, getString(R.string.tt_how_earn_1))
+        bindHowStep(view, R.id.how_step_earn_2, 2, getString(R.string.tt_how_earn_2))
+        bindHowStep(view, R.id.how_step_earn_3, 3, getString(R.string.tt_how_earn_3))
+        bindHowStep(view, R.id.how_step_earn_4, 4, getString(R.string.tt_how_earn_4))
+
+        dialog.show()
+    }
+
+    private fun bindHowStep(root: View, includeId: Int, number: Int, text: String) {
+        val row = root.findViewById<View>(includeId) ?: return
+        row.findViewById<TextView>(R.id.tv_step_number)?.text = number.toString()
+        row.findViewById<TextView>(R.id.tv_step_text)?.text = text
+    }
+
+    /**
+     * What happens after a successful order.
+     *
+     * A toast saying "Ordered 100 followers" tells the buyer nothing about what their money
+     * bought — and the app's whole mechanic (my order becomes someone else's task) is the
+     * part that makes them trust it. So the confirmation says where the order goes, who
+     * acts on it, and how to follow its progress, with a route into the fuller explanation.
+     */
+    private fun showOrderPlacedDialog(countLabel: String, typeLabel: String, handle: String, isLikes: Boolean) {
+        val what = if (isLikes) "video" else "profile"
+        val action = if (isLikes) "like" else "follow"
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tt_order_placed_title))
+            .setMessage(
+                getString(
+                    R.string.tt_order_placed_body,
+                    countLabel,
+                    typeLabel,
+                    handle,
+                    what,
+                    action
+                )
+            )
+            .setPositiveButton(getString(R.string.tt_done), null)
+            .setNeutralButton(getString(R.string.tt_how_it_works)) { _, _ -> showHowItWorksDialog() }
+            .show()
     }
 
     /**
@@ -755,6 +1051,15 @@ class HomeActivity : AppCompatActivity() {
                 orderHistoryAdapter.submit(orders)
                 rvMyOrders.visibility = if (orders.isEmpty()) View.GONE else View.VISIBLE
                 tvOrdersEmpty.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
+
+                // Same rows, second home. The Tasks screen shows the buyer's own orders
+                // next to the task they are being asked to do, so the two sides of the app
+                // are visible together instead of on two different tabs.
+                taskOrderAdapter.submit(orders)
+                tvTaskOrdersCount.text = orders.size.toString()
+                rvTaskOrders.visibility = if (orders.isEmpty()) View.GONE else View.VISIBLE
+                tvTaskOrdersEmpty.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
+                sectionTaskOrders?.visibility = View.VISIBLE
 
                 coinHistoryAdapter.submit(ledger)
                 rvCoinHistory.visibility = if (ledger.isEmpty()) View.GONE else View.VISIBLE
@@ -807,11 +1112,19 @@ class HomeActivity : AppCompatActivity() {
         val title: String,
         val thumbUrl: String,
         val likes: String,
-        val comments: String
+        val comments: String,
+        /**
+         * The video's own URL. A likes order is anchored to ONE video — the server reads
+         * that video's like count and stores it as the starting point — so this is what
+         * actually has to be sent. It used to be dropped entirely, and the order went out
+         * with the *profile* URL plus a made-up `post_pk`, which the server could not read.
+         */
+        val url: String
     )
 
     private var selectedVideoPostPk: String? = null
     private var selectedVideoTitleStr: String? = null
+    private var selectedVideoUrl: String? = null
 
     private fun updateBoostTargetAccountInfo() {
         tvBoostCoinsBadge?.text = "$coinsBalance coins available"
@@ -862,12 +1175,20 @@ class HomeActivity : AppCompatActivity() {
             tvTabProfile?.setTypeface(null, Typeface.NORMAL)
             indicatorProfile?.visibility = View.INVISIBLE
 
-            cardVideoSelection?.visibility = View.GONE
+            // This used to be GONE here as well as on the Profile tab, and nothing ever
+            // made it visible again — so the video picker had no entry point at all and a
+            // likes order could never name a video. It belongs on this tab: likes are
+            // bought for one video, followers for a whole profile.
+            cardVideoSelection?.visibility = View.VISIBLE
+            updateSelectedVideoBanner()
             boostAdapter.setTab(BoostAdapter.BoostTab.VIDEO)
         }
 
+        // Pasting a link is the primary path: a likes order names one video, and the link
+        // is what the people doing the task open. The grid is offered from inside the paste
+        // screen as a convenience, not as a gate in front of it.
         cardVideoSelection?.setOnClickListener {
-            showChooseVideoDialog()
+            showAddVideoLinkDialog()
         }
 
         setupCoinPackButtons()
@@ -881,11 +1202,20 @@ class HomeActivity : AppCompatActivity() {
             tvTitle.text = selectedVideoTitleStr
             tvSubtitle.text = "Target video selected for TikTok Likes"
         } else {
-            tvTitle.text = "Choose Video to Boost ❤️"
-            tvSubtitle.text = "Tap to select your video or paste a link"
+            tvTitle.text = "Paste your video link ❤️"
+            tvSubtitle.text = "Tap to paste the TikTok video you want liked"
         }
     }
 
+    /**
+     * The video picker.
+     *
+     * This used to be eight hardcoded unsplash thumbnails with ids like `video_1`, so
+     * "selecting a video" only ever produced a fake id — there was no video URL to send,
+     * and a likes order is anchored to a specific video. It now loads the account's real
+     * posts from /v6/posts and keeps each video's URL; the Add Video tile stays first and
+     * works even when the provider returns nothing.
+     */
     private fun showChooseVideoDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_choose_video, null)
         val dialog = AlertDialog.Builder(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
@@ -898,20 +1228,11 @@ class HomeActivity : AppCompatActivity() {
 
         btnBack.setOnClickListener { dialog.dismiss() }
 
-        val sampleVideos = listOf(
-            TikTokVideoSample("video_1", "Blender Recipe", "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400", "133.1k", "2.0k"),
-            TikTokVideoSample("video_2", "Home Garden", "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400", "149.9k", "5.6k"),
-            TikTokVideoSample("video_3", "Papatui #1", "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400", "6.1k", "332"),
-            TikTokVideoSample("video_4", "Outdoor Smile", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400", "127.2k", "3.8k"),
-            TikTokVideoSample("video_5", "Fitness Workout", "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400", "125.2k", "2.1k"),
-            TikTokVideoSample("video_6", "Swimming Pool", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400", "10.4k", "140"),
-            TikTokVideoSample("video_7", "Family & Music", "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400", "9.3k", "85"),
-            TikTokVideoSample("video_8", "Gym Session", "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400", "231.1k", "4.2k")
-        )
+        val videos = mutableListOf<TikTokVideoSample>()
 
         rvVideos.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 3)
-        rvVideos.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-            override fun getItemCount(): Int = sampleVideos.size + 1
+        val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            override fun getItemCount(): Int = videos.size + 1
 
             override fun getItemViewType(position: Int): Int = if (position == 0) 0 else 1
 
@@ -929,57 +1250,141 @@ class HomeActivity : AppCompatActivity() {
                     layoutAdd.visibility = View.VISIBLE
                     holder.itemView.setOnClickListener {
                         dialog.dismiss()
-                        promptAddCustomVideoUrl()
+                        showAddVideoLinkDialog()
                     }
                 } else {
                     layoutNormal.visibility = View.VISIBLE
                     layoutAdd.visibility = View.GONE
-                    val item = sampleVideos[position - 1]
+                    val item = videos[position - 1]
                     val ivThumb = holder.itemView.findViewById<ImageView>(R.id.iv_video_thumb)
                     val tvLikes = holder.itemView.findViewById<TextView>(R.id.tv_video_likes)
                     val tvComments = holder.itemView.findViewById<TextView>(R.id.tv_video_comments)
 
                     tvLikes.text = item.likes
                     tvComments.text = item.comments
-                    Glide.with(this@HomeActivity)
-                        .load(item.thumbUrl)
-                        .placeholder(R.drawable.bg_gradient_dark)
-                        .into(ivThumb)
+                    if (item.thumbUrl.isNotBlank()) {
+                        Glide.with(this@HomeActivity)
+                            .load(item.thumbUrl)
+                            .placeholder(R.drawable.bg_gradient_dark)
+                            .into(ivThumb)
+                    } else {
+                        ivThumb.setImageResource(R.drawable.bg_gradient_dark)
+                    }
 
                     holder.itemView.setOnClickListener {
-                        selectedVideoPostPk = item.id
-                        selectedVideoTitleStr = "${item.title} (${item.likes} ❤️)"
-                        updateSelectedVideoBanner()
+                        applySelectedVideo(item.id, item.url, "${item.title} (${item.likes} ❤️)")
                         dialog.dismiss()
-                        Toast.makeText(this@HomeActivity, "Selected video for likes boost!", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
+        }
+        rvVideos.adapter = adapter
+
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
+        val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
+        if (!token.isNullOrBlank() && !handle.isNullOrBlank()) {
+            Thread {
+                val posts = try {
+                    SocialBoostApi.fetchPosts(token, handle)
+                } catch (e: Exception) {
+                    Log.w("HomeActivity", "video list failed: ${e.message}")
+                    emptyList()
+                }
+                runOnUiThread {
+                    if (!dialog.isShowing) return@runOnUiThread
+                    videos.clear()
+                    videos.addAll(
+                        posts.map {
+                            TikTokVideoSample(it.id, it.title, it.thumbUrl, it.likes, it.comments, it.url)
+                        }
+                    )
+                    adapter.notifyDataSetChanged()
+                }
+            }.start()
         }
 
         dialog.show()
     }
 
-    private fun promptAddCustomVideoUrl() {
-        val input = EditText(this)
-        input.hint = "https://www.tiktok.com/@username/video/..."
-        input.setPadding(30, 20, 30, 20)
+    /** Remember the chosen video: its id, its URL, and a label for the banner. */
+    private fun applySelectedVideo(postId: String, url: String, label: String) {
+        selectedVideoPostPk = postId.ifBlank { null }
+        selectedVideoUrl = url
+        selectedVideoTitleStr = label
+        updateSelectedVideoBanner()
+        Toast.makeText(this, getString(R.string.tt_add_video_ok), Toast.LENGTH_SHORT).show()
+    }
 
-        AlertDialog.Builder(this)
-            .setTitle("Add TikTok Video")
-            .setMessage("Paste the link of the video you want to boost:")
-            .setView(input)
-            .setPositiveButton("Select") { _, _ ->
-                val url = input.text.toString().trim()
-                if (url.isNotEmpty()) {
-                    selectedVideoPostPk = url.hashCode().toString()
-                    selectedVideoTitleStr = "Custom Video (${url.takeLast(12)})"
-                    updateSelectedVideoBanner()
-                    Toast.makeText(this, "Video link set!", Toast.LENGTH_SHORT).show()
-                }
+    /**
+     * "Add Video Link" — paste a TikTok video URL.
+     *
+     * The previous version was a bare dialog that accepted anything at all and stored
+     * `url.hashCode()` as the video id. Nothing pasted ever reached the server as a video
+     * URL, so the order went out pointing at the profile and the server rejected it with
+     * "Could not read that video". This validates the link, keeps the real URL, and
+     * explains the failure inline instead of silently accepting garbage.
+     */
+    private fun showAddVideoLinkDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_add_video_link, null)
+        val dialog = AlertDialog.Builder(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            .setView(view)
+            .setCancelable(true)
+            .create()
+
+        view.findViewById<View>(R.id.btn_add_video_back).setOnClickListener { dialog.dismiss() }
+
+        view.findViewById<View>(R.id.btn_pick_from_videos).setOnClickListener {
+            dialog.dismiss()
+            showChooseVideoDialog()
+        }
+
+        val input = view.findViewById<EditText>(R.id.et_video_url)
+        val error = view.findViewById<TextView>(R.id.tv_video_url_error)
+
+        view.findViewById<View>(R.id.btn_add_video_confirm).setOnClickListener {
+            val raw = input.text.toString().trim()
+            if (raw.isBlank()) {
+                error.text = getString(R.string.tt_add_video_empty)
+                error.visibility = View.VISIBLE
+                return@setOnClickListener
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+
+            val parsed = normalizeVideoLink(raw)
+            if (parsed == null) {
+                error.text = getString(R.string.tt_add_video_bad_link)
+                error.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+
+            error.visibility = View.GONE
+            applySelectedVideo(parsed.first, parsed.second, "Video ${parsed.first.ifBlank { "link" }}")
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Accept `tiktok.com/@handle/video/<id>` (with or without a scheme, www/m, query
+     * string) and `vm.tiktok.com` / `vt.tiktok.com` short links.
+     *
+     * @return (videoId, canonicalUrl) — videoId is blank for a short link, because only the
+     *   server can follow the redirect; it extracts the id from the resolved URL itself.
+     */
+    private fun normalizeVideoLink(raw: String): Pair<String, String>? {
+        val withScheme = if (raw.startsWith("http", ignoreCase = true)) raw else "https://$raw"
+
+        Regex("""(?:www\.|m\.)?tiktok\.com/@([A-Za-z0-9._-]+)/video/(\d+)""", RegexOption.IGNORE_CASE)
+            .find(withScheme)?.let { match ->
+                val handle = match.groupValues[1]
+                val id = match.groupValues[2]
+                return id to "https://www.tiktok.com/@$handle/video/$id"
+            }
+
+        if (Regex("""(?:vm|vt)\.tiktok\.com/\S+""", RegexOption.IGNORE_CASE).containsMatchIn(withScheme)) {
+            return "" to withScheme
+        }
+        return null
     }
 
     private fun setupCoinPackButtons() {
@@ -1096,7 +1501,18 @@ class HomeActivity : AppCompatActivity() {
         Toast.makeText(this, "Placing order…", Toast.LENGTH_SHORT).show()
 
         val isLikes = typeLabel.contains("Like", ignoreCase = true)
-        val postPk = if (isLikes) selectedVideoPostPk ?: "video_1" else null
+
+        // A likes order is anchored to ONE video. Sending the profile URL (as this used to)
+        // makes the server unable to read a like count, and it rejects the order — which is
+        // why buying likes never worked. Ask for the video instead of sending a bad order.
+        if (isLikes && selectedVideoUrl.isNullOrBlank()) {
+            Toast.makeText(this, getString(R.string.tt_video_required), Toast.LENGTH_LONG).show()
+            showChooseVideoDialog()
+            return
+        }
+
+        val postPk = if (isLikes) selectedVideoPostPk else null
+        val targetUrl = if (isLikes) selectedVideoUrl!! else "https://www.tiktok.com/@$handle"
 
         Thread {
             fun doOrder(authToken: String) {
@@ -1105,7 +1521,7 @@ class HomeActivity : AppCompatActivity() {
                         token = authToken,
                         secUid = secUid,
                         username = handle,
-                        url = "https://www.tiktok.com/@$handle",
+                        url = targetUrl,
                         productId = product.id,
                         postPk = postPk
                     )
@@ -1119,11 +1535,7 @@ class HomeActivity : AppCompatActivity() {
                     runOnUiThread {
                         coinsBalance = coins
                         updateCoinsDisplay()
-                        Toast.makeText(
-                            this,
-                            getString(R.string.tt_boost_ordered, countLabel, typeLabel, handle),
-                            Toast.LENGTH_LONG
-                        ).show()
+                        showOrderPlacedDialog(countLabel, typeLabel, handle, isLikes)
                     }
                 } catch (e: Exception) {
                     if (e is SocialBoostApi.ApiException && e.errorCode == "TokenExpired") {
@@ -1176,7 +1588,15 @@ class HomeActivity : AppCompatActivity() {
         handle: String
     ) {
         val isLikes = (product.productType ?: "").contains("Like", ignoreCase = true)
-        val postPk = if (isLikes) selectedVideoPostPk ?: "video_1" else null
+
+        if (isLikes && selectedVideoUrl.isNullOrBlank()) {
+            Toast.makeText(this, getString(R.string.tt_video_required), Toast.LENGTH_LONG).show()
+            showChooseVideoDialog()
+            return
+        }
+
+        val postPk = if (isLikes) selectedVideoPostPk else null
+        val targetUrl = if (isLikes) selectedVideoUrl!! else "https://www.tiktok.com/@$handle"
 
         Thread {
             fun doPlayOrder(authToken: String) {
@@ -1185,7 +1605,7 @@ class HomeActivity : AppCompatActivity() {
                         token = authToken,
                         secUid = secUid,
                         username = handle,
-                        url = "https://www.tiktok.com/@$handle",
+                        url = targetUrl,
                         productId = product.id,
                         postPk = postPk
                     )
@@ -1372,15 +1792,10 @@ class HomeActivity : AppCompatActivity() {
         btnTaskFollow.isEnabled = true
         btnTaskFollow.alpha = 1f
 
-        if (next.imageUrl.isNotBlank()) {
-            Glide.with(this)
-                .load(next.imageUrl)
-                .placeholder(R.drawable.tt_surface_elevated)
-                .error(R.drawable.tt_surface_elevated)
-                .into(ivTaskAvatar)
-        } else {
-            ivTaskAvatar.setImageDrawable(null)
-        }
+        // Try the server mirror first, then whatever URL the feed supplied. The raw URL
+        // is a signed TikTok CDN link that expires, so on its own it eventually 403s and
+        // the card loses its picture.
+        Avatars.load(ivTaskAvatar, Avatars.candidates(next.username, next.imageUrl), next.username)
     }
 
     private fun showTaskState(loading: Boolean, message: String? = null) {

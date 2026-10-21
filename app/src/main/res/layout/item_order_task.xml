@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One of the user's own orders, as shown in the Tasks screen's second section.
+
+  Compact and horizontal because the section scrolls sideways under the live task card:
+  the buyer sees the task they are being asked to do and the orders they are paying for at
+  the same time, which is the connection the app otherwise leaves invisible.
+
+  Includes the delivered counter, so "100 ordered" is never mistaken for "100 already
+  received".
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="152dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="10dp"
+    android:background="@drawable/tt_card_bg"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="9dp">
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/iv_task_order_avatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/tt_surface_elevated"
+                android:contentDescription="@string/tt_order_avatar"
+                android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/TTCircleImage" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tv_task_order_type"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            tools:text="Likes x100"
+            android:textColor="@color/tt_text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_task_order_handle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        tools:text="@demo"
+        android:textColor="@color/tt_text_secondary"
+        android:textSize="11sp" />
+
+    <ProgressBar
+        android:id="@+id/progress_task_order"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="9dp"
+        android:progressTint="@color/tt_pink"
+        android:progressBackgroundTint="@color/tt_divider"
+        tools:progress="60" />
+
+    <TextView
+        android:id="@+id/tv_task_order_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        tools:text="60 / 100 · In progress"
+        android:textColor="@color/tt_text_secondary"
+        android:textSize="11sp" />
+</LinearLayout>

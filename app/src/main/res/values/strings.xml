@@ -111,4 +111,64 @@
     <string name="tt_more_no_history">No coin activity yet.</string>
     <string name="tt_more_refresh">Refresh balance &amp; history</string>
     <string name="tt_more_signout">Sign out</string>
+    <string name="tt_order_avatar">Account profile picture</string>
+
+    <!-- Add Video Link -->
+    <string name="tt_add_video_link">Add Video Link</string>
+    <string name="tt_add_video">Add Video</string>
+    <string name="tt_back">Back</string>
+    <string name="tt_paste_url_hint">Paste URL here…</string>
+    <string name="tt_add_video_help">Need help? Check below instruction:</string>
+    <string name="tt_add_video_step1">Open the video on TikTok and tap the share icon on the bottom right.</string>
+    <string name="tt_add_video_step2">Choose \"Copy link\", then paste it in the field above and tap Add Video.</string>
+    <string name="tt_add_video_note">The link must point at one video, not your profile.</string>
+    <string name="tt_pick_from_videos">Or pick one of my videos</string>
+    <string name="tt_add_video_empty">Paste the video link first.</string>
+    <string name="tt_add_video_bad_link">That is not a TikTok video link. It should look like tiktok.com/@you/video/1234567890</string>
+    <string name="tt_add_video_ok">Video link added.</string>
+    <string name="tt_video_required">Pick a video before buying likes.</string>
+
+    <!-- ===================== Daily reward ===================== -->
+    <string name="tt_daily_reward">Daily reward</string>
+    <string name="tt_daily_claim">Claim</string>
+    <string name="tt_daily_claiming">Claiming…</string>
+    <string name="tt_daily_claimed">Claimed today ✓</string>
+    <string name="tt_daily_countdown">Next free coins in %1$s</string>
+    <string name="tt_daily_streak">%1$d-day streak! Keep it going</string>
+    <string name="tt_daily_available">+%1$d coins today</string>
+    <string name="tt_daily_done">+%1$d coins added. Come back tomorrow for more.</string>
+    <string name="tt_daily_failed">Could not claim right now. %1$s</string>
+    <string name="tt_daily_unknown">Daily reward unavailable</string>
+
+    <!-- ===================== How it works ===================== -->
+    <string name="tt_how_it_works">How it works</string>
+    <string name="tt_how_summary">Coins are earned, not bought twice. When you order followers or likes, the coins you spend become the prize pool. Your profile or video goes into the Tasks list, other users open that link and follow or like it for real, and the coins move to them once the app checks the follow or like actually happened.</string>
+
+    <string name="tt_how_buy_title">If you want to grow your account</string>
+    <string name="tt_how_buy_sub">Followers for a profile, or likes for one video.</string>
+    <string name="tt_how_buy_1">Open Store, choose the Profile or Video tab, then pick a package. Pay with coins, or with Google Play for the larger ones.</string>
+    <string name="tt_how_buy_2">Followers go to your connected account. For likes, paste the link to one video: tap the video card, paste the link, tap Add Video.</string>
+    <string name="tt_how_buy_3">Place the order. It shows up immediately in More → My orders with its progress.</string>
+    <string name="tt_how_buy_4">Your profile or video then appears in other users\' Tasks. They open it, follow or like it, and your order counter goes up.</string>
+
+    <string name="tt_how_earn_title">If you want to earn coins</string>
+    <string name="tt_how_earn_sub">Then spend those coins on your own profile.</string>
+    <string name="tt_how_earn_1">Open Tasks. Each card shows the account to follow or the video to like, and how many coins it pays.</string>
+    <string name="tt_how_earn_2">Tap Follow or Like. TikTok opens on that profile or video — do the follow or like there.</string>
+    <string name="tt_how_earn_3">Come back to the app and tap Check. The app verifies the follow or like before paying, so the coins land a moment later.</string>
+    <string name="tt_how_earn_4">Top up free with the daily reward: More → Daily reward gives you 100 coins every day.</string>
+
+    <string name="tt_how_fair_title">Keeping it fair</string>
+    <string name="tt_how_fair_body">The app never pays for a follow or like it cannot see — it compares the counts before and after, so nothing is paid twice and nothing is paid for nothing.\n\nIf you skip a task it comes back later, up to two times, before it leaves your list. An order that has not been verified stays in progress rather than disappearing.\n\nTo keep the cycle working for everyone: complete the tasks you start, and keep your linked account public — a private account cannot be checked.</string>
+
+    <!-- ===================== Order outcome ===================== -->
+    <string name="tt_order_placed_title">Order placed</string>
+    <string name="tt_order_placed_body">%1$s %2$s for @%3$s.\n\nYour %4$s is now in the Tasks list. Other users open that link and %5$s it — the app checks the action before paying them, so the counter on your order rises as they do.\n\nTrack it any time in More → My orders.</string>
+    <string name="tt_done">Done</string>
+
+    <!-- ===================== Tasks screen: your orders ===================== -->
+    <string name="tt_task_orders_title">Your orders</string>
+    <string name="tt_task_orders_empty">No orders yet. Place one from the Store and it will show up here.</string>
+    <string name="tt_task_order_in_progress">%1$d / %2$d</string>
+    <string name="tt_task_order_done">%1$d / %2$d delivered</string>
 </resources>

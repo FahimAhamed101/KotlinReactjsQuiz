@@ -22,7 +22,7 @@ export const GET = handle(async (request) => {
   const [rows, total] = await Promise.all([
     db.order.find({
       where,
-      include: { product: { include: { productType: true } }, user: true },
+      include: { product: { include: { productType: true } }, user: true, account: true },
       sort: { createdAt: 'desc' },
       skip: (page - 1) * PER_PAGE,
       limit: PER_PAGE,

@@ -9,6 +9,7 @@ import {
   REACTIVATABLE_SYSTEM_REASONS,
   isCancelledStatus,
 } from './constants';
+import { avatarUrlFor } from './services/avatar';
 
 /**
  * Make a database value safe for `JSON.stringify`.
@@ -59,6 +60,10 @@ export function accountResourceV2(a) {
   if (!a) return null;
   return {
     avatarLarger: a.avatarLarger,
+    // Stable, non-expiring picture. Relative so it works from localhost and Vercel
+    // alike; the client joins it onto its configured base URL. `avatarLarger` is kept
+    // untouched above because it is the upstream contract.
+    avatar_url: avatarUrlFor(a),
     userId: a.tiktokId,
     nickname: a.nickname,
     privateAccount: a.privateAccount,
@@ -86,7 +91,12 @@ export function orderResource(o, { v4 = false } = {}) {
   const base = {
     id: o.id,
     product: productResource(o.product),
-    image: o.image,
+    // `orders.image` is a snapshot taken when the order was placed, and those snapshots
+    // are upstream TikTok CDN URLs that expire in ~2 days — so the avatar on a task card
+    // or in order history went blank a couple of days after the order. Prefer the
+    // account's mirrored picture when we have one, and keep the snapshot as the fallback
+    // for orders whose account row is gone.
+    image: (o.account && avatarUrlFor(o.account)) || o.image,
     url: (o.url || '').toLowerCase(),
     type: o.type,
     username: o.username,

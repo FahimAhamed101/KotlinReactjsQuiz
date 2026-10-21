@@ -3,10 +3,12 @@ package com.Fahim101.tomquiz.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.Fahim101.tomquiz.R
+import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.SocialBoostApi
 
 /** The order history list on the More screen. */
@@ -15,6 +17,7 @@ class OrderHistoryAdapter(
 ) : RecyclerView.Adapter<OrderHistoryAdapter.OrderViewHolder>() {
 
     class OrderViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val ivAvatar: ImageView = view.findViewById(R.id.iv_order_avatar)
         val tvType: TextView = view.findViewById(R.id.tv_order_type)
         val tvStatus: TextView = view.findViewById(R.id.tv_order_status)
         val tvUsername: TextView = view.findViewById(R.id.tv_order_username)
@@ -38,6 +41,10 @@ class OrderHistoryAdapter(
         holder.tvType.text = if (item.actionCount > 0) "$kind x${item.actionCount}" else kind
         holder.tvUsername.text = "@${item.username}"
         holder.tvDate.text = item.createdAt.take(10)
+
+        // Mirror URL first, then the order's own snapshot. The snapshot is a signed TikTok
+        // CDN link and stops working after ~2 days, so it is only a fallback.
+        Avatars.load(holder.ivAvatar, Avatars.candidates(item.username, item.image), item.username)
 
         holder.tvStatus.text = item.status
         holder.tvStatus.setTextColor(

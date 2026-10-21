@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  How it works.
+
+  Exists because the app has two sides that borrow each other's coins, and neither side
+  could see it: someone buys followers and their profile quietly enters a stranger's task
+  list; someone else taps Follow and earns coins for it. Written out plainly so a buyer
+  knows what their money does and a worker knows why a link is waiting for them.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/tt_bg_aurora"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/tt_top_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <ImageView
+            android:id="@+id/btn_how_back"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="?selectableItemBackgroundBorderless"
+            android:contentDescription="@string/tt_back"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/white" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/tt_how_it_works"
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="28dp"
+            android:layout_height="28dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <!-- The one sentence that makes the rest make sense. -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/tt_surface_elevated"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/tt_divider"
+                app:strokeWidth="1dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="14dp"
+                    android:text="@string/tt_how_summary"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="13sp"
+                    android:lineSpacingMultiplier="1.25" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ==================== Buying ==================== -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/tt_how_buy_title"
+                android:textColor="@color/tt_pink"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/tt_how_buy_sub"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="12sp" />
+
+            <include
+                android:id="@+id/how_step_buy_1"
+                layout="@layout/item_how_step" />
+
+            <include
+                android:id="@+id/how_step_buy_2"
+                layout="@layout/item_how_step" />
+
+            <include
+                android:id="@+id/how_step_buy_3"
+                layout="@layout/item_how_step" />
+
+            <include
+                android:id="@+id/how_step_buy_4"
+                layout="@layout/item_how_step" />
+
+            <!-- ==================== Earning ==================== -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="@string/tt_how_earn_title"
+                android:textColor="@color/tt_teal"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/tt_how_earn_sub"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="12sp" />
+
+            <include
+                android:id="@+id/how_step_earn_1"
+                layout="@layout/item_how_step" />
+
+            <include
+                android:id="@+id/how_step_earn_2"
+                layout="@layout/item_how_step" />
+
+            <include
+                android:id="@+id/how_step_earn_3"
+                layout="@layout/item_how_step" />
+
+            <include
+                android:id="@+id/how_step_earn_4"
+                layout="@layout/item_how_step" />
+
+            <!-- ==================== Fair use ==================== -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="@string/tt_how_fair_title"
+                android:textColor="@color/tt_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="20dp"
+                android:text="@string/tt_how_fair_body"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="12sp"
+                android:lineSpacingMultiplier="1.25" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

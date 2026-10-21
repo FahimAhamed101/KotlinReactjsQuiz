@@ -64,6 +64,9 @@ export const CoinHistoryType = {
   // Not in the Laravel original — added so spending coins on a source code shows
   // up in the ledger instead of vanishing from the user's history.
   CodeUnlock: 'CodeUnlock',
+  // Also not in the original: the free daily claim. Kept as its own type so the daily
+  // streak and the one-per-day rule are readable straight off the ledger.
+  DailyBonus: 'DailyBonus',
 };
 
 /** products.category */

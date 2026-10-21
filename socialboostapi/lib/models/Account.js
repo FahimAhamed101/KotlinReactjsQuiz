@@ -1,4 +1,12 @@
 // TikTok accounts plus the per-account counters used by the task checker.
+//
+// `username` stays globally unique for now. That is a deliberate, known limitation rather
+// than an oversight: the same handle can legitimately exist on TikTok, Instagram and
+// Facebook, and a unique index on the handle alone means only one of them can be stored.
+// Swapping it for a compound (platform, username) unique index is a one-line schema change
+// plus an index swap, and it is worth doing before the other platforms go live — until
+// then, lookups filter by platform AND username so rows can never be *matched* across
+// platforms even though they cannot be *created* across platforms.
 
 import mongoose from 'mongoose';
 import { autoId, defineModel, withJsonShape } from './_base';
@@ -7,6 +15,11 @@ const accountSchema = withJsonShape(
   autoId(
     new mongoose.Schema(
       {
+        // Which network this row belongs to. Defaults to TikTok so every existing row and
+        // every client that does not send the field keeps working exactly as before.
+        // `@demo` exists on all three platforms as three different people, so this is part
+        // of the identity — see the note on Account.username below.
+        platform: { type: String, default: 'tiktok', index: true },
         username: { type: String, required: true, unique: true, index: true },
         isBanned: { type: Boolean, default: false },
 
@@ -15,6 +28,10 @@ const accountSchema = withJsonShape(
         avatarLarger: { type: String, default: null },
         avatarMedium: { type: String, default: null },
         avatarThumb: { type: String, default: null },
+        // True once the bytes are in the `avatars` collection. The upstream URLs above
+        // are time-signed and expire; this flag says "render /api/v6/avatar/<username>
+        // instead", which is what makes the picture survive the signature expiring.
+        avatarMirrored: { type: Boolean, default: false },
         nickname: { type: String, default: null },
         region: { type: String, default: null },
         secret: { type: Boolean, default: false },

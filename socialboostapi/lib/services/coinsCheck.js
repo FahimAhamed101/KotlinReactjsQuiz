@@ -451,7 +451,20 @@ export async function resolveAccount(body) {
   return null;
 }
 
-/** Insert/update an Account from a provider profile. */
+/**
+ * Insert/update an Account from a provider profile.
+ *
+ * The important rule here is that a **placeholder must never overwrite real data**.
+ * `getProfileInfo` returns a deterministic stub when no RAPID_API_KEY is configured
+ * (which is the case on the deployed Vercel build). The stub carries a picsum avatar,
+ * an invented `signature` and hash-derived follower counts. Blindly upserting it — as
+ * this function used to — destroyed the real profile of every user who logged in
+ * against the deployment, and nothing in the row recorded that it had been replaced.
+ *
+ * So: a stub only fills fields that are currently empty, and never touches an avatar
+ * that is already set. A real profile still overwrites, but keeps an existing avatar
+ * when the provider omits one rather than blanking the picture.
+ */
 export async function upsertAccountFromProfile(profile) {
   const username = profile.username.toLowerCase();
   const data = {
@@ -470,6 +483,29 @@ export async function upsertAccountFromProfile(profile) {
     following: profile.followingCount ?? 0,
     follower: profile.followerCount ?? 0,
   };
+
+  const existing = await db.account.findOne({ where: { username } });
+
+  if (existing && profile.isStub) {
+    // Fill the gaps only. `following`/`follower` are deliberately excluded: the stub
+    // derives them from a hash, and writing them would also move the follow-checker's
+    // anchor to a number that has nothing to do with the real account.
+    const fill = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (key === 'username' || key === 'following' || key === 'follower') continue;
+      const current = existing[key];
+      const empty = current === null || current === undefined || current === '';
+      if (empty && value !== null && value !== undefined && value !== '') fill[key] = value;
+    }
+    if (Object.keys(fill).length === 0) return existing;
+    return db.account.upsert({ where: { username }, create: data, update: fill });
+  }
+
+  if (existing && !data.avatarLarger && existing.avatarLarger) {
+    // The provider answered but had no avatar for this account. Keep the one we have
+    // instead of clearing the picture.
+    delete data.avatarLarger;
+  }
 
   return db.account.upsert({
     where: { username },

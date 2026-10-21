@@ -16,6 +16,10 @@ export const DEFAULTS = {
   like: 3,
   follow: 5,
   welcomeBonus: 30,
+  // The free daily claim. Next.js-native: the Laravel original has no daily bonus
+  // (its `Spin` is a paid Google Play product), so the amount is a server-side setting
+  // the client never sets or sees hardcoded.
+  dailyBonus: 100,
   maxFullWelcomeBonusPer3Hours: 500,
   reducedWelcomeBonus: 50,
   maxReferralsPerUser: 5,

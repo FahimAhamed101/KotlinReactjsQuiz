@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The URL field on the Add Video Link screen: dark fill with a pink border so it reads
+     as an input against the aurora background. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/tt_surface" />
+    <corners android:radius="14dp" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/tt_pink_dim" />
+</shape>

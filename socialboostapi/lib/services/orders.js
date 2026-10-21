@@ -9,6 +9,7 @@ import { getFloat, getInt } from '../settings';
 import { err, ApiException } from '../errors';
 import { reactivationIneligibilityReason } from '../resources';
 import { getPostInfo, getProfileInfo } from './tiktok';
+import { resolveVideoUrl, canonicalVideoUrl } from './videoUrl';
 import { validateOfferProduct } from './offers';
 import { upsertAccountFromProfile } from './coinsCheck';
 
@@ -23,11 +24,31 @@ export async function createOrderV4({ user, body }) {
   });
   if (!product) throw err.productNotFound('Product not found.');
 
-  // Resolve the target account from sec_uid (v4 drops the `username` field).
-  const account = await resolveTargetAccount(body);
+  const isLikes = isLikesProduct(product);
+
+  // A likes order is anchored to one video, so the URL has to be resolved *before* the
+  // account: the handle in the link is the authoritative target, and the client's
+  // `username` may be stale or may be the viewer rather than the video's owner.
+  //
+  // This also replaces trusting `body.post_pk`: the id comes out of the URL the user
+  // pasted. Previously the client sent a profile URL plus a made-up `post_pk`
+  // ("video_1", or `url.hashCode()`), `getPostInfo` could not read a like count from a
+  // profile, and every likes order died with "Could not read that video".
+  let video = null;
+  if (isLikes) {
+    video = await resolveVideoUrl(body.url);
+    if (!video) {
+      throw err.invalidUsernameOrUrl(
+        'Paste the link to a single TikTok video (…/@username/video/1234567890). ' +
+          'A profile link cannot be boosted for likes.',
+      );
+    }
+  }
+
+  // Resolve the target account. Prefer the handle from the video link when we have one.
+  const account = await resolveTargetAccount(body, { preferUsername: video?.username ?? null });
   if (!account) throw err.invalidUsernameOrUrl('Could not resolve the TikTok account.');
 
-  const isLikes = isLikesProduct(product);
   const isOfferProduct = product.category === ProductCategory.Offer;
 
   let offer = null;
@@ -45,8 +66,15 @@ export async function createOrderV4({ user, body }) {
   let image = account.avatarLarger ?? '';
 
   if (isLikes) {
-    const post = await getPostInfo(body.url);
-    if (!post) throw err.invalidUsernameOrUrl('Could not read that video.');
+    canonicalUrl = canonicalVideoUrl(video);
+    postPk = video.postId;
+
+    const post = await getPostInfo(canonicalUrl);
+    if (!post) {
+      throw err.invalidUsernameOrUrl(
+        'Could not read that video. Check the link opens a single public TikTok video.',
+      );
+    }
     startCount = post.likeCount;
     if (post.cover) image = post.cover;
   } else {
@@ -194,9 +222,22 @@ export async function checkOrdersCount(userId) {
 }
 
 /** Resolve the target account for an order from sec_uid or username. */
-async function resolveTargetAccount(body) {
+async function resolveTargetAccount(body, { preferUsername = null } = {}) {
   const secUid = body.sec_uid || null;
   const username = body.username ? String(body.username).toLowerCase() : null;
+
+  // A likes order names its target in the video link. That handle must win over the
+  // viewer's `sec_uid` — otherwise boosting someone else's video would resolve to the
+  // viewer's own account and anchor the order to the wrong profile.
+  if (preferUsername) {
+    const handle = String(preferUsername).toLowerCase();
+    const known = await db.account.findOne({ where: { username: handle } });
+    if (known) return known;
+
+    const profile = await getProfileInfo(handle, null);
+    if (!profile) return null;
+    return upsertAccountFromProfile(profile);
+  }
 
   if (secUid) {
     const found = await db.account.findOne({ where: { secUid } });

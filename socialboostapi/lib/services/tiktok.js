@@ -17,7 +17,14 @@ export function hasLiveProvider() {
   return RAPID_KEY.length > 0;
 }
 
-async function rapidGet(path, params) {
+/**
+ * Raw provider call.
+ *
+ * Exported because `app/api/v6/posts/route.js` imports it to proxy the video grid.
+ * It was not exported, so that route could never have worked — which is half of why
+ * "add a video" had no real videos to pick from.
+ */
+export async function rapidGet(path, params) {
   const url = new URL(`https://${RAPID_HOST}${path}`);
   for (const [k, v] of Object.entries(params)) {
     if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, String(v));
@@ -129,6 +136,12 @@ function stubProfile(username, secUid) {
   if (!username) return null;
   const seed = hashString(username);
   return {
+    // Callers MUST check this before persisting. A stub carries a picsum
+    // placeholder avatar, an invented signature and hash-derived counters; writing
+    // it over a row that was populated by the live provider destroys the real
+    // profile and there is no way to tell afterwards. That is exactly how the
+    // deployed app (no RAPID_API_KEY) used to erase every real avatar.
+    isStub: true,
     username,
     secUid: secUid ?? `MS4wLjABAAAA${seed.toString(36)}`,
     tiktokId: String(7000000000000000000n + BigInt(seed)),

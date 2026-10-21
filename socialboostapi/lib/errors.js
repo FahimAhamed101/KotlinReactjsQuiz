@@ -44,6 +44,10 @@ export const ApiErrorCode = {
   CaptchaInvalid: 401,
   ServerError: 503,
   ApiDisabled: 400,
+  // 409, not 400: this is "already done" rather than "bad input". The client uses it
+  // to fall back to the not-yet-available state instead of showing an error about
+  // something being wrong with the request.
+  DailyBonusClaimed: 409,
 };
 
 /** Thrown anywhere in a handler; the wrapper turns it into an error envelope. */
@@ -109,4 +113,5 @@ export const err = {
   captchaRequired: (m) => new ApiException('CaptchaRequired', m, 428, [{ captcha_required: true }]),
   captchaInvalid: (m) => new ApiException('CaptchaInvalid', m, 401, [{ captcha_required: true }]),
   apiDisabled: (m) => new ApiException('ApiDisabled', m),
+  dailyBonusClaimed: (m) => new ApiException('DailyBonusClaimed', m),
 };

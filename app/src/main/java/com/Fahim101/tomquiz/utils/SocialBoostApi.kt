@@ -50,6 +50,172 @@ object SocialBoostApi {
     }
 
     /**
+     * One of the viewer's videos, as offered by the picker.
+     *
+     * `url` is the part that matters: a likes order is anchored to a single video, and the
+     * server needs that video's link to read its current like count.
+     */
+    data class VideoPost(
+        val id: String,
+        val title: String,
+        val thumbUrl: String,
+        val likes: String,
+        val comments: String,
+        val url: String
+    )
+
+    /** 133100 -> "133.1k", 9300 -> "9.3k", 332 -> "332". */
+    private fun compact(n: Long): String = when {
+        n >= 1_000_000 -> String.format("%.1fm", n / 1_000_000.0)
+        n >= 1_000 -> String.format("%.1fk", n / 1_000.0)
+        else -> n.toString()
+    }
+
+    /**
+     * GET /api/v6/posts -> the account's recent videos.
+     *
+     * The picker used to be a hardcoded list of unsplash thumbnails with fake ids, so
+     * "selecting" a video never had a real URL to send. This returns the account's actual
+     * posts; when the provider is unavailable the server returns an empty list and the
+     * picker falls back to the Add Video tile alone.
+     */
+    fun fetchPosts(token: String, uniqueId: String, count: Int = 24): List<VideoPost> {
+        if (uniqueId.isBlank()) return emptyList()
+        val payload = call("GET", "/api/v6/posts?unique_id=$uniqueId&count=$count&cursor=0", null, token)
+
+        // The route forwards the scraper payload, so the list sits at data.videos. When
+        // the provider is down the server sends { code: 0, data: { videos: [] } }.
+        val body = payload.optJSONObject("data") ?: payload
+        val arr = body.optJSONArray("videos") ?: JSONArray()
+        val out = mutableListOf<VideoPost>()
+
+        for (i in 0 until arr.length()) {
+            val v = arr.optJSONObject(i) ?: continue
+            val id = (if (v.isNull("video_id")) null else v.optString("video_id"))
+                ?: (if (v.isNull("aweme_id")) null else v.optString("aweme_id"))
+                ?: continue
+            if (id.isBlank()) continue
+
+            val shareUrl = if (v.isNull("share_url")) null else v.optString("share_url")
+            val url = shareUrl?.takeIf { it.startsWith("http") }
+                ?: "https://www.tiktok.com/@$uniqueId/video/$id"
+
+            val title = (if (v.isNull("title")) null else v.optString("title"))
+                ?.takeIf { it.isNotBlank() }
+                ?: "Video ${out.size + 1}"
+
+            val thumb = listOf("cover", "origin_cover", "ai_dynamic_cover")
+                .firstNotNullOfOrNull { k -> if (v.isNull(k)) null else v.optString(k).ifBlank { null } }
+                ?: ""
+
+            out.add(
+                VideoPost(
+                    id = id,
+                    title = title,
+                    thumbUrl = thumb,
+                    likes = compact(v.optLong("digg_count", 0)),
+                    comments = compact(v.optLong("comment_count", 0)),
+                    url = url
+                )
+            )
+        }
+        return out
+    }
+
+    /**
+     * State of the free daily coin claim.
+     *
+     * `nextClaimAt` is epoch millis, or null when a claim is available now. Both come from
+     * the server, so the countdown is not derived from the device clock (which the user
+     * controls) — the same reason the claim is validated server-side.
+     */
+    data class DailyBonus(
+        val available: Boolean,
+        val amount: Int,
+        val streak: Int,
+        val nextClaimAt: Long?
+    )
+
+    /**
+     * GET /api/v6/coins/daily -> the current claim state, and the fresh balance.
+     *
+     * Returns null when the server has no `daily_bonus` key (older builds), which the
+     * caller treats as "hide the card" rather than an error.
+     */
+    fun fetchDailyBonus(token: String): DailyBonus? {
+        val data = call("GET", "/api/v6/coins/daily", null, token)
+        val bonus = data.optJSONObject("daily_bonus") ?: return null
+        return DailyBonus(
+            available = bonus.optBoolean("available", false),
+            amount = bonus.optInt("amount", 0),
+            streak = bonus.optInt("streak", 0),
+            nextClaimAt = if (bonus.isNull("nextClaimAt")) null else bonus.optLong("nextClaimAt", 0)
+                .let { if (it == 0L) null else it }
+        )
+    }
+
+    /**
+     * POST /api/v6/coins/daily -> claim today's free coins.
+     *
+     * The server enforces one claim per day, so a second call from a double tap is
+     * refused with `DailyBonusClaimed` rather than paying twice.
+     */
+    fun claimDailyBonus(token: String): JSONObject {
+        return call("POST", "/api/v6/coins/daily", JSONObject(), token)
+    }
+
+    /**
+     * The signed-in user's own TikTok profile, as the server currently holds it.
+     *
+     * The app used to capture the avatar once at login and never ask again, so a
+     * placeholder captured during a login that hit the offline stub stayed on screen
+     * permanently — even after the server had the real picture. This lets the avatar be
+     * refreshed on every launch.
+     *
+     * `avatarUrl` is the server's stable mirror path (preferred); `avatarLarger` is the
+     * upstream CDN URL and is kept as a fallback for server builds that predate the
+     * mirror route.
+     */
+    data class ProfileInfo(
+        val username: String?,
+        val nickname: String?,
+        val avatarUrl: String?,
+        val avatarLarger: String?,
+        val following: Int,
+        val followers: Int,
+        val signature: String?
+    )
+
+    fun fetchProfile(token: String, username: String?, secUid: String?): ProfileInfo? {
+        val query = buildString {
+            append("/api/v6/me")
+            if (!username.isNullOrBlank()) append("?username=").append(username)
+            if (!secUid.isNullOrBlank()) {
+                append(if (username.isNullOrBlank()) "?" else "&").append("sec_uid=").append(secUid)
+            }
+        }
+        val data = call("GET", query, null, token)
+        val info = data.optJSONObject("tiktok_info") ?: return null
+
+        // `optString(key)` returns the literal "null" for a JSON null, so every nullable
+        // field has to be tested with isNull() first.
+        fun text(key: String): String? {
+            if (info.isNull(key)) return null
+            return info.optString(key).ifBlank { null }
+        }
+
+        return ProfileInfo(
+            username = text("uniqueId"),
+            nickname = text("nickname"),
+            avatarUrl = text("avatar_url"),
+            avatarLarger = text("avatarLarger"),
+            following = info.optInt("followingCount", 0),
+            followers = info.optInt("followerCount", 0),
+            signature = text("signature")
+        )
+    }
+
+    /**
      * One page of the task feed.
      *
      * `hasNext` is the server's own answer to "is there more after this?" — it is the
@@ -386,7 +552,12 @@ object SocialBoostApi {
         val actionCount: Int,
         val status: String,
         val isLikes: Boolean,
-        val createdAt: String
+        val createdAt: String,
+        /** The boosted account's avatar, as the server resolved it for this order. */
+        val image: String? = null,
+        /** How much of the order has been delivered, and the target. */
+        val currentProgress: Int = 0,
+        val maxProgress: Int = 0
     )
 
     /** One row in the coins ledger. */
@@ -420,7 +591,10 @@ object SocialBoostApi {
                     actionCount = product?.optInt("action_count", 0) ?: 0,
                     status = o.optString("status", ""),
                     isLikes = o.optBoolean("is_likes", false),
-                    createdAt = o.optString("created_at", "")
+                    createdAt = o.optString("created_at", ""),
+                    image = if (o.isNull("image")) null else o.optString("image").ifBlank { null },
+                    currentProgress = o.optInt("current_progress", 0),
+                    maxProgress = o.optInt("max_progress", 0)
                 )
             )
         }

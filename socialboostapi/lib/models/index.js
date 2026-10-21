@@ -6,6 +6,8 @@
 
 export { User, PersonalAccessToken } from './User.js';
 export { Account, FollowCount, LikesCount, SkipCount, Report } from './Account.js';
+export { Avatar } from './Avatar.js';
+export { DailyClaim } from './DailyClaim.js';
 export {
   ProductType,
   Product,

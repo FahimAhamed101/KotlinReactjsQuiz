@@ -11,6 +11,7 @@
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/transparent"
@@ -401,5 +402,74 @@
         </ScrollView>
         </FrameLayout>
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- ======================= Section 2: your orders ======================= -->
+    <!--
+      The app's two halves on one screen. Everything above is a task someone else is being
+      paid to do; this strip is the buyer's side of the same ledger — the same rows shown
+      under More → My orders, so a buyer watching tasks can see what their own order is
+      doing without leaving the screen.
+
+      Outside the SwipeRefreshLayout on purpose: pull-to-refresh must not re-trigger while
+      the order strip is being scrolled sideways.
+    -->
+    <LinearLayout
+        android:id="@+id/section_task_orders"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/tt_surface"
+        android:orientation="vertical"
+        android:paddingTop="12dp"
+        android:paddingBottom="14dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/tt_task_orders_title"
+                android:textColor="@color/tt_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_task_orders_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="3"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_task_orders"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:clipToPadding="false"
+            android:nestedScrollingEnabled="false"
+            android:paddingStart="20dp"
+            android:paddingEnd="10dp"
+            tools:listitem="@layout/item_order_task" />
+
+        <TextView
+            android:id="@+id/tv_task_orders_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="@string/tt_task_orders_empty"
+            android:textColor="@color/tt_text_secondary"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </LinearLayout>
 
 </LinearLayout>
