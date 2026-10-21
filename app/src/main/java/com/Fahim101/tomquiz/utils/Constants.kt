@@ -81,6 +81,18 @@ object Constants {
     const val KEY_AUTH_TOKEN = "ttboost_auth_token"
     const val KEY_SEC_UID = "ttboost_sec_uid"
 
+    /**
+     * Which network the signed-in account belongs to.
+     *
+     * Stored from the very first screen because every URL the app builds depends on it, and
+     * defaulting is not enough once a second platform exists: `@demo` is a different person
+     * on TikTok, Instagram and Facebook, so the handle alone does not identify an account.
+     */
+    const val KEY_PLATFORM = "ttboost_platform"
+
+    /** Platform used when nothing has been stored yet — every pre-platform row. */
+    const val PLATFORM_DEFAULT = "tiktok"
+
     /** `tiktok_info.avatarLarger` captured at login — the user's profile picture. */
     const val KEY_AVATAR_URL = "ttboost_avatar_url"
     const val KEY_TIKTOK_USERNAME = "ttboost_tiktok_username"

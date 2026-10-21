@@ -1,0 +1,21 @@
+# app-ads.txt — authorized sellers for this app's ad inventory.
+#
+# Add one line per authorized seller, in the exact AdMob/IAB format:
+#   <ad system domain>, <publisher id>, <relationship>, <certification authority id>
+#
+# For AdMob the relationship is DIRECT (Google buys directly, no reseller) and the
+# certification authority id is f08c47fec0942fa0 — that value is fixed for every
+# Google seller and must not be edited.
+#
+# IMPORTANT — placement: this file only works at the ROOT of the developer website
+# listed in the Play Console (Store listing → Website), and AdMob crawls it from
+# there. Whichever domain that is, it must serve this exact file at
+#   https://<that-domain>/app-ads.txt
+# This repository serves it too, so a developer website deployed from here works
+# out of the box:
+#   https://kotlin-reactjs-quiz-xi.vercel.app/app-ads.txt
+#
+# `ads.txt` (the same content) is kept alongside it: it is what a *web* property on the
+# same publisher id needs, and having both costs nothing.
+
+google.com, pub-7830531573570855, DIRECT, f08c47fec0942fa0

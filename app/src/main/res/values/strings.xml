@@ -171,4 +171,10 @@
     <string name="tt_task_orders_empty">No orders yet. Place one from the Store and it will show up here.</string>
     <string name="tt_task_order_in_progress">%1$d / %2$d</string>
     <string name="tt_task_order_done">%1$d / %2$d delivered</string>
+
+    <!-- ===================== Login: confirm the account ===================== -->
+    <string name="tt_preview_title">Is this your account?</string>
+    <string name="tt_preview_continue">Yes, continue</string>
+    <string name="tt_preview_not_me">Not me</string>
+    <string name="tt_preview_no_key">This server has no TikTok API key, so it sent a placeholder picture and invented follower counts. Add RAPID_API_KEY to see the real profile.</string>
 </resources>

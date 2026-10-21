@@ -9,11 +9,16 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import android.view.LayoutInflater
 import com.Fahim101.tomquiz.ui.HomeActivity
+import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.Constants
 import com.Fahim101.tomquiz.utils.SocialBoostApi
 import com.Fahim101.tomquiz.utils.TikTokHandle
@@ -207,6 +212,97 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // Resolve the handle *before* creating anything. The point is that the first screen
+        // answers "is this really me, with my picture" while it is still cheap to fix a typo,
+        // instead of after an account has been created for a handle that is not theirs.
+        setLoading(true, "Looking up @$username…")
+
+        Thread {
+            var profile: SocialBoostApi.ProfileInfo? = null
+            try {
+                profile = SocialBoostApi.lookupProfile(Constants.PLATFORM_DEFAULT, username)
+            } catch (e: Exception) {
+                Log.w("MainActivity", "lookup failed: ${e.message}")
+            }
+
+            runOnUiThread {
+                setLoading(false)
+                if (profile == null) {
+                    setLoginStatus(
+                        "Could not find @$username on TikTok. Check the spelling and try again.",
+                        isError = true
+                    )
+                    return@runOnUiThread
+                }
+                showProfilePreview(profile, username)
+            }
+        }
+    }
+
+    /**
+     * Show the resolved profile so the user can confirm it is theirs *before* signing in.
+     *
+     * This is where "I typed my username and nothing about me appears" gets fixed: the
+     * picture and counts they see here are the real ones, fetched from the platform, and the
+     * preview is also what stores them — so the profile section is correct from the moment
+     * the app opens rather than only after a successful login.
+     */
+    private fun showProfilePreview(profile: SocialBoostApi.ProfileInfo, fallbackUsername: String) {
+        val handle = profile.username ?: fallbackUsername
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_profile_preview, null)
+
+        val ivAvatar = view.findViewById<ImageView>(R.id.iv_preview_avatar)
+        val tvHandle = view.findViewById<TextView>(R.id.tv_preview_handle)
+        val tvName = view.findViewById<TextView>(R.id.tv_preview_name)
+        val tvStats = view.findViewById<TextView>(R.id.tv_preview_stats)
+        val tvError = view.findViewById<TextView>(R.id.tv_preview_missing)
+
+        tvHandle.text = "@$handle"
+        tvName.text = profile.nickname ?: handle
+
+        val stats = buildList {
+            if (profile.followers > 0) add("${profile.followers} followers")
+            if (profile.following > 0) add("${profile.following} following")
+        }
+        tvStats.text = stats.joinToString("  ·  ")
+        tvStats.visibility = if (stats.isEmpty()) View.GONE else View.VISIBLE
+
+        // What the offline stub produces. Rather than showing a stranger's photo as if it
+        // were the user's, say that the real picture needs a provider - a wrong picture
+        // looks exactly like a broken one from the outside.
+        val placeholder = profile.avatarLarger?.contains("picsum") == true
+        if (placeholder) {
+            tvError.setText(R.string.tt_preview_no_key)
+            tvError.visibility = View.VISIBLE
+        }
+        Avatars.load(ivAvatar, Avatars.candidates(handle, profile.avatarUrl, profile.avatarLarger), handle)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(view)
+            .setCancelable(true)
+            .create()
+
+        view.findViewById<View>(R.id.btn_preview_not_me).setOnClickListener {
+            dialog.dismiss()
+            editUsername.requestFocus()
+        }
+        view.findViewById<View>(R.id.btn_preview_continue).setOnClickListener {
+            dialog.dismiss()
+            // Store the resolved identity now, so it is right even if the next step fails.
+            prefs.edit()
+                .putString(Constants.KEY_TIKTOK_USERNAME, handle)
+                .putString(Constants.KEY_PLATFORM, Constants.PLATFORM_DEFAULT)
+                .putString(Constants.KEY_AVATAR_URL, profile.avatarUrl ?: profile.avatarLarger)
+                .putString(Constants.USER_NAME, profile.nickname ?: handle)
+                .apply()
+            completeSignIn(handle)
+        }
+
+        dialog.show()
+    }
+
+    /** The login/register step, once the user has confirmed the profile is theirs. */
+    private fun completeSignIn(username: String) {
         setLoading(true, "Connecting to SocialBoost…")
 
         // A deterministic identifier so the same handle always maps to one account.
@@ -280,6 +376,21 @@ class MainActivity : AppCompatActivity() {
         } else {
             tvStatus.visibility = View.GONE
         }
+    }
+
+    /**
+     * A message the user is meant to read and act on — a handle that does not exist, for
+     * instance. Unlike the transient status, it stays on screen until the next attempt.
+     */
+    private fun setLoginStatus(message: String, isError: Boolean) {
+        tvStatus.text = message
+        tvStatus.visibility = View.VISIBLE
+        tvStatus.setTextColor(
+            ContextCompat.getColor(this, if (isError) R.color.tt_tip_red else R.color.tt_text_secondary)
+        )
+        // The input stays up and focused so the next action is editing the username, not
+        // hunting for the field again.
+        editUsername.requestFocus()
     }
 
     private fun goHome() {

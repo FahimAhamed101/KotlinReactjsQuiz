@@ -165,6 +165,43 @@ object SocialBoostApi {
     }
 
     /**
+     * GET /api/v6/lookup/<platform>/<username> -> the public profile for a handle,
+     * *before* signing in.
+     *
+     * Stored as prefs straight away: the first thing a user wants to know after typing their
+     * username is "is that my account, with my picture". Doing the lookup at this point means
+     * the profile section can show the real picture from the very first screen, rather than
+     * waiting for a login whose response may have been served by a deployment with no TikTok
+     * key and therefore a placeholder.
+     *
+     * Unauthenticated but signed (see the route) — the caller sends the same headers it
+     * always does, and `call` does that for us.
+     */
+    fun lookupProfile(platform: String, username: String): ProfileInfo? {
+        val handle = username.trim().removePrefix("@")
+        if (handle.isBlank()) return null
+        val path = "/api/v6/lookup/${platform.lowercase()}/" +
+            java.net.URLEncoder.encode(handle, "UTF-8")
+        val data = call("GET", path, null, token = null)
+        val info = data.optJSONObject("tiktok_info") ?: return null
+
+        fun text(key: String): String? {
+            if (info.isNull(key)) return null
+            return info.optString(key).ifBlank { null }
+        }
+
+        return ProfileInfo(
+            username = text("uniqueId"),
+            nickname = text("nickname"),
+            avatarUrl = text("avatar_url"),
+            avatarLarger = text("avatarLarger"),
+            following = info.optInt("followingCount", 0),
+            followers = info.optInt("followerCount", 0),
+            signature = text("signature")
+        )
+    }
+
+    /**
      * The signed-in user's own TikTok profile, as the server currently holds it.
      *
      * The app used to capture the avatar once at login and never ask again, so a
