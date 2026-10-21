@@ -25,6 +25,28 @@ export async function createOrderV4({ user, body }) {
   if (!product) throw err.productNotFound('Product not found.');
 
   const isLikes = isLikesProduct(product);
+  const isOfferProduct = product.category === ProductCategory.Offer;
+  const isFree = product.coinsPrice !== null && product.coinsPrice !== undefined;
+  const type = isFree ? OrderType.Free : OrderType.Premium;
+
+  // --- Checks that produce a refusal, ordered so the message matches the real blocker ---
+  //
+  // The order of these checks IS the error the user sees. Resolving the target link first
+  // would tell someone who cannot afford a package "that link is not a video" - wrong, and
+  // unactionable, because the fix is a different message and a different action. Running
+  // the cheap checks first also means a refused order makes no provider calls at all.
+  if (isFree) {
+    if (user.coins < product.coinsPrice) {
+      throw err.coinsNotEnough('Not enough coins.');
+    }
+    await checkOrdersCount(user.id);
+  }
+
+  let offer = null;
+  if (isOfferProduct) {
+    // Offer eligibility is also a refusal the user cannot act on from the order form.
+    offer = await validateOfferProduct(user, product, body.offer_id);
+  }
 
   // A likes order is anchored to one video, so the URL has to be resolved *before* the
   // account: the handle in the link is the authoritative target, and the client's
@@ -48,16 +70,6 @@ export async function createOrderV4({ user, body }) {
   // Resolve the target account. Prefer the handle from the video link when we have one.
   const account = await resolveTargetAccount(body, { preferUsername: video?.username ?? null });
   if (!account) throw err.invalidUsernameOrUrl('Could not resolve the TikTok account.');
-
-  const isOfferProduct = product.category === ProductCategory.Offer;
-
-  let offer = null;
-  if (isOfferProduct) {
-    offer = await validateOfferProduct(user, product, body.offer_id);
-  }
-
-  const isFree = product.coinsPrice !== null && product.coinsPrice !== undefined;
-  const type = isFree ? OrderType.Free : OrderType.Premium;
 
   // --- Fetch the target's live counters to anchor start_count ---
   let startCount = 0;
@@ -90,12 +102,8 @@ export async function createOrderV4({ user, body }) {
   const actualMaxProgress = bonus;
 
   if (isFree) {
-    // --- Coins-paid order ---
-    if (user.coins < product.coinsPrice) {
-      throw err.coinsNotEnough('Not enough coins.');
-    }
-    await checkOrdersCount(user.id);
-
+    // Affordability and the per-user order limit were already checked before any network
+    // call — see above. This block is now only the deduction.
     return db.transaction(async (tx) => {
       const order = await tx.order.create({
         data: {

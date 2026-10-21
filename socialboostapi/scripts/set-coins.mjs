@@ -37,12 +37,20 @@ await dbConnect();
 
 // Resolve the user the same way the app does: the login handle is an account
 // username, and the coin balance lives on the user row it links to.
+//
+// Three tries, in order of reliability. `accounts.userId` is the intended link, but rows
+// written before that column existed have no value there — matching on `name` alone made
+// the script report "no user found" for a handle whose account existed, which is how this
+// tool came to look broken for exactly the accounts an operator wants to fix.
 const account = await (await import('../lib/db.js')).default.account.findOne({
   where: { username },
 });
 
-let user = account ? await User.findOne({ id: account.userId }) : null;
+let user = null;
+if (account?.userId) user = await User.findOne({ id: account.userId });
+if (!user) user = await User.findOne({ email: `${username}@ttboost.app` });
 if (!user) user = await User.findOne({ name: username });
+if (!user) user = await User.findOne({ name: `@${username}` });
 
 if (!user) {
   console.error(`no user found for "${username}"`);

@@ -99,11 +99,16 @@ const coinsOf = async (token) =>
   const before = await coinsOf(tokenA);
   console.log(`      balance before: ${before}`);
 
-  const body = (id) => ({
+  // A likes order is anchored to ONE video, so it must carry a video link — a profile link
+  // is refused outright ("A profile link cannot be boosted for likes"). This used to send
+  // the profile URL for every product, which is exactly the shape that made every likes
+  // order fail with "Could not read that video".
+  const SAMPLE_VIDEO = 'https://www.tiktok.com/@fahim1000011/video/7690664473157176584';
+  const body = (p) => ({
     sec_uid: secUid,
     username: handle,
-    url: `https://www.tiktok.com/@${handle}`,
-    product_id: String(id),
+    url: p.product_type === 'Likes' ? SAMPLE_VIDEO : `https://www.tiktok.com/@${handle}`,
+    product_id: String(p.id),
   });
 
   // cheapest coin package, so a 5000-coin account can always afford it
@@ -111,7 +116,7 @@ const coinsOf = async (token) =>
     .filter((p) => p.coins_price != null)
     .sort((x, y) => x.coins_price - y.coins_price)[0];
 
-  const order = await call('POST', '/api/v6/orders', body(coinProduct.id), tokenA);
+  const order = await call('POST', '/api/v6/orders', body(coinProduct), tokenA);
   show(`POST /api/v6/orders (product ${coinProduct.id}, ${coinProduct.coins_price} coins)`, order);
   if (order.json.success) {
     console.log(
@@ -130,7 +135,7 @@ const coinsOf = async (token) =>
   // A Play-priced product must create a Pending order and never touch coins.
   const playProduct = list.find((p) => p.coins_price == null);
   if (playProduct) {
-    const playOrder = await call('POST', '/api/v6/orders', body(playProduct.id), tokenA);
+    const playOrder = await call('POST', '/api/v6/orders', body(playProduct), tokenA);
 
     // Two outcomes are legitimate: the order is created Pending, or the
     // per-user pending-order cap (maxPendingOrdersPerUser) refuses it — which
@@ -181,7 +186,12 @@ const coinsOf = async (token) =>
       {
         sec_uid: ttB.secUid,
         username: ttB.uniqueId ?? 'storeflow2',
-        url: `https://www.tiktok.com/@${ttB.uniqueId ?? 'storeflow2'}`,
+        // The dearest package is a Likes type, so it needs a video link. The point of the
+        // assertion below is the balance, so the URL only has to be *valid* — it must not
+        // be the thing that refuses the order first.
+        url: dearest.product_type === 'Likes'
+          ? 'https://www.tiktok.com/@fahim1000011/video/7690664473157176584'
+          : `https://www.tiktok.com/@${ttB.uniqueId ?? 'storeflow2'}`,
         product_id: String(dearest.id),
       },
       tokenB,
