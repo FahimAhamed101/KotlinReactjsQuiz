@@ -232,6 +232,7 @@ class MainActivity : AppCompatActivity() {
         setLoading(true, "Looking up @$username…")
 
         Thread {
+            Log.d("MainActivity", "signIn: resolving @$username")
             var profile: SocialBoostApi.ProfileInfo? = null
             var notFound = false
             try {
@@ -244,6 +245,8 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.w("MainActivity", "lookup failed: ${e.message}")
             }
+
+            Log.d("MainActivity", "signIn: lookup returned profile=${profile != null} notFound=$notFound")
 
             runOnUiThread {
                 setLoading(false)

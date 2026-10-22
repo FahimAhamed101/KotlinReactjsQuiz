@@ -79,6 +79,12 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
 
     const eligible = [];
     for (const order of candidates) {
+      // Never serve a viewer their own order. Completing it would be self-dealing: they
+      // would earn the completion reward for an action they "performed" on themselves.
+      // Laravel excludes by user_id AND by the linked account, so match both here.
+      if (order.userId != null && Number(order.userId) === Number(userId)) continue;
+      if (accountId != null && order.accountId != null && Number(order.accountId) === Number(accountId)) continue;
+
       if (await isAlreadyCredited(userId, accountId, order)) continue;
       if (await isSkipped(accountId, order.id)) continue;
       eligible.push(order);

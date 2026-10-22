@@ -697,7 +697,9 @@ object SocialBoostApi {
                 conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             }
 
+            Log.d(TAG, "→ $method $url")
             val code = conn.responseCode
+            Log.d(TAG, "← $code $method $path")
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
 
