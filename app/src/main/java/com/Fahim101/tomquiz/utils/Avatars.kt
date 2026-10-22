@@ -49,10 +49,22 @@ object Avatars {
         val out = LinkedHashSet<String>()
         Constants.avatarUrlFor(username)?.let { out.add(it) }
         for (url in fallbacks) {
-            if (!isPlaceholder(url)) out.add(url!!.trim())
+            if (isPlaceholder(url)) continue
+            out.add(absolute(url!!.trim()))
         }
         return out.toList()
     }
+
+    /**
+     * The server returns `avatar_url` and order `image` as paths relative to the API base
+     * (`/api/v6/avatar/tiktok/<handle>`). Glide needs an absolute URL, so a relative path
+     * failed to load and the avatar silently fell through to the expiring CDN link — or,
+     * for task cards and order history, straight to the lettered placeholder. Join it onto
+     * the configured base instead.
+     */
+    private fun absolute(url: String): String =
+        if (url.startsWith("http://") || url.startsWith("https://")) url
+        else Constants.TTBOOST_API_URL.trimEnd('/') + "/" + url.trimStart('/')
 
     /** Load [urls] into [view], falling back to a lettered avatar when none resolve. */
     fun load(view: ImageView, urls: List<String>, label: String? = null) {

@@ -233,22 +233,35 @@ class MainActivity : AppCompatActivity() {
 
         Thread {
             var profile: SocialBoostApi.ProfileInfo? = null
+            var notFound = false
             try {
                 profile = SocialBoostApi.lookupProfile(Constants.PLATFORM_DEFAULT, username)
+            } catch (e: SocialBoostApi.ApiException) {
+                // Only a definite "no such account" should stop the user. Every other
+                // failure is the preview being unavailable, not the account being wrong.
+                notFound = e.errorCode == "UserNotFound"
+                Log.w("MainActivity", "lookup failed (${e.errorCode}): ${e.message}")
             } catch (e: Exception) {
                 Log.w("MainActivity", "lookup failed: ${e.message}")
             }
 
             runOnUiThread {
                 setLoading(false)
-                if (profile == null) {
-                    setLoginStatus(
+                val resolved = profile
+                when {
+                    resolved != null -> showProfilePreview(resolved, username)
+
+                    notFound -> setLoginStatus(
                         "Could not find @$username on TikTok. Check the spelling and try again.",
                         isError = true
                     )
-                    return@runOnUiThread
+
+                    // The lookup is a courtesy, not a prerequisite. If the preview endpoint
+                    // is unavailable (older deployment, network hiccup, provider outage),
+                    // sign in anyway: login/register resolve the account server-side, so
+                    // blocking here would turn a cosmetic failure into "cannot log in at all".
+                    else -> completeSignIn(username)
                 }
-                showProfilePreview(profile, username)
             }
         }
     }

@@ -108,10 +108,14 @@ object Constants {
      * Returns null for a blank handle. The caller is expected to fall back to the CDN URL
      * when this one 404s (older server builds have no such route).
      */
-    fun avatarUrlFor(username: String?): String? {
+    fun avatarUrlFor(username: String?, platform: String = PLATFORM_DEFAULT): String? {
         val handle = username?.trim()?.lowercase()
         if (handle.isNullOrBlank()) return null
-        return "${TTBOOST_API_URL.trimEnd('/')}/api/v6/avatar/${java.net.URLEncoder.encode(handle, "UTF-8")}"
+        // The route is /api/v6/avatar/<platform>/<username>. The old shape omitted the
+        // platform segment, so this URL 404'd and every avatar silently fell back to the
+        // expiring TikTok CDN link (which then 403'd ~2 days later).
+        return "${TTBOOST_API_URL.trimEnd('/')}/api/v6/avatar/$platform/" +
+            java.net.URLEncoder.encode(handle, "UTF-8")
     }
 
     /**
