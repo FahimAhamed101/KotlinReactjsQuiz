@@ -57,7 +57,25 @@ export async function getMirroredAvatar(platform, username) {
     username: String(username).toLowerCase(),
   }).lean();
   if (!row?.data) return null;
-  return { data: row.data, contentType: row.contentType || 'image/jpeg' };
+  return { data: toBuffer(row.data), contentType: row.contentType || 'image/jpeg' };
+}
+
+/**
+ * `.lean()` skips Mongoose hydration, so a `Buffer` field comes back as the raw BSON
+ * `Binary` object rather than a Node Buffer. Handing that to `new Uint8Array(...)` yields an
+ * EMPTY array on the local runtime (a 0-byte `image/webp`) and throws outright on the
+ * serverless runtime (a 500) — which is exactly why the profile picture rendered as an
+ * initials placeholder. Normalise to a real Buffer before the bytes reach `Response`.
+ */
+function toBuffer(v) {
+  if (Buffer.isBuffer(v)) return v;
+  if (v && typeof v.value === 'function') {
+    const inner = v.value();
+    if (Buffer.isBuffer(inner)) return inner;
+    if (inner && inner.buffer) return Buffer.from(inner.buffer);
+  }
+  if (v && Buffer.isBuffer(v.buffer)) return v.buffer;
+  return Buffer.from(v);
 }
 
 /**

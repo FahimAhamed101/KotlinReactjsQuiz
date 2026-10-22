@@ -672,15 +672,16 @@ object SocialBoostApi {
         path: String,
         body: JSONObject?,
         token: String?,
-        extraHeaders: Map<String, String> = emptyMap()
+        extraHeaders: Map<String, String> = emptyMap(),
+        timeoutMs: Int = TIMEOUT_MS
     ): JSONObject {
         val url = URL(Constants.TTBOOST_API_URL.trimEnd('/') + path)
         val conn = url.openConnection() as HttpURLConnection
 
         try {
             conn.requestMethod = method
-            conn.connectTimeout = TIMEOUT_MS
-            conn.readTimeout = TIMEOUT_MS
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
             conn.setRequestProperty("Accept", "application/json")
             extraHeaders.forEach { (k, v) -> conn.setRequestProperty(k, v) }
             if (token != null) conn.setRequestProperty("Authorization", "Bearer $token")

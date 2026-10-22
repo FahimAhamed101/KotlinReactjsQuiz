@@ -226,47 +226,16 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Resolve the handle *before* creating anything. The point is that the first screen
-        // answers "is this really me, with my picture" while it is still cheap to fix a typo,
-        // instead of after an account has been created for a handle that is not theirs.
-        setLoading(true, "Looking up @$username…")
-
-        Thread {
-            Log.d("MainActivity", "signIn: resolving @$username")
-            var profile: SocialBoostApi.ProfileInfo? = null
-            var notFound = false
-            try {
-                profile = SocialBoostApi.lookupProfile(Constants.PLATFORM_DEFAULT, username)
-            } catch (e: SocialBoostApi.ApiException) {
-                // Only a definite "no such account" should stop the user. Every other
-                // failure is the preview being unavailable, not the account being wrong.
-                notFound = e.errorCode == "UserNotFound"
-                Log.w("MainActivity", "lookup failed (${e.errorCode}): ${e.message}")
-            } catch (e: Exception) {
-                Log.w("MainActivity", "lookup failed: ${e.message}")
-            }
-
-            Log.d("MainActivity", "signIn: lookup returned profile=${profile != null} notFound=$notFound")
-
-            runOnUiThread {
-                setLoading(false)
-                val resolved = profile
-                when {
-                    resolved != null -> showProfilePreview(resolved, username)
-
-                    notFound -> setLoginStatus(
-                        "Could not find @$username on TikTok. Check the spelling and try again.",
-                        isError = true
-                    )
-
-                    // The lookup is a courtesy, not a prerequisite. If the preview endpoint
-                    // is unavailable (older deployment, network hiccup, provider outage),
-                    // sign in anyway: login/register resolve the account server-side, so
-                    // blocking here would turn a cosmetic failure into "cannot log in at all".
-                    else -> completeSignIn(username)
-                }
-            }
-        }
+        // Straight to login/register — one server round-trip, exactly as before.
+        //
+        // There used to be a profile lookup here first, so the user could confirm "is this
+        // me?" before an account existed. That made sign-in take TWO sequential round-trips
+        // (lookup, then login), which on a cold server start doubled the wait and made the
+        // button look dead. The login response already carries the account's `tiktok_info`,
+        // and Home loads the real picture and counts on entry, so the preview is no longer
+        // worth the latency — the profile still shows the right person, just immediately
+        // after sign-in instead of before it.
+        completeSignIn(username)
     }
 
     /**
