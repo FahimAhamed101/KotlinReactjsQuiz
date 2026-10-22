@@ -6,8 +6,18 @@
 //   getMirroredAvatar(platform, username) -> { data, contentType } | null
 //   hasMirror(platform, username)         -> bool
 //   avatarUrlFor(account)                 -> mirror path when we have bytes, else upstream
+//
+// NOTE: every read/write here opens the database connection explicitly.
+//
+// This module talks to the raw Mongoose model rather than the `db` wrapper, and the wrapper
+// is what normally calls `dbConnect()` before each query. On a warm local server another
+// route has already connected, so a raw query works by luck — but on a cold serverless
+// start nothing has connected yet, so `Avatar.findOne(...)` buffers until it times out and
+// the avatar route answers 500. That is exactly the "profile picture is broken on Vercel
+// but fine locally" symptom, so the connection is opened here rather than assumed.
 
 import { Avatar } from '../models/Avatar.js';
+import { dbConnect } from '../mongodb.js';
 import { normalizePlatform } from './platforms';
 
 /** Anything bigger than this is not a profile picture. */
@@ -52,6 +62,7 @@ export function avatarUrlFor(account) {
 /** Read the stored bytes, or null. */
 export async function getMirroredAvatar(platform, username) {
   if (!username) return null;
+  await dbConnect();
   const row = await Avatar.findOne({
     platform: normalizePlatform(platform),
     username: String(username).toLowerCase(),
@@ -113,6 +124,7 @@ export async function mirrorAvatar(platform, username, url) {
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length === 0 || buf.length > MAX_BYTES) return false;
 
+    await dbConnect();
     await Avatar.updateOne(
       { platform: plat, username: usernameKey },
       {
@@ -163,6 +175,7 @@ function logMirrorNote(message) {
 /** True when this account already has stored bytes (cheap existence check). */
 export async function hasMirror(platform, username) {
   if (!username) return false;
+  await dbConnect();
   const row = await Avatar.findOne({
     platform: normalizePlatform(platform),
     username: String(username).toLowerCase(),
