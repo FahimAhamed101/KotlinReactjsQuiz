@@ -11,6 +11,7 @@ import android.graphics.drawable.Drawable
 import android.widget.ImageView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
@@ -19,7 +20,7 @@ import com.Fahim101.tomquiz.R
 /**
  * Loading a profile picture that actually stays loaded.
  *
- * Four things go wrong with avatars in this app and they have to be handled together:
+ * Five things go wrong with avatars in this app and they have to be handled together:
  *
  * 1. **The server's mirror route may not exist yet.** Older deployments have no
  *    `/api/v6/avatar/<username>`, so that URL 404s.
@@ -30,6 +31,13 @@ import com.Fahim101.tomquiz.R
  *    worse than rendering nothing, because it looks like the wrong person's photo.
  * 4. **Some accounts genuinely have no picture** (the seeded demo accounts). An empty
  *    circle there reads as a broken image.
+ * 5. **Glide's disk cache can be poisoned by an empty body.** When the mirror route was
+ *    briefly returning `200` with zero bytes, Glide stored that empty response under the
+ *    avatar URL. Every later load then read the 0-byte file and failed with
+ *    `IOException: File unsuitable for memory mapping`, so the picture stayed blank even
+ *    after the server was fixed. Avatars are therefore loaded with the disk cache OFF —
+ *    they are a few KB, the memory cache still serves them within a session, and a bad
+ *    response can never outlive the request that produced it.
  *
  * So every load is an ordered list of candidates tried in turn, a placeholder is never a
  * candidate, and the fallback is a lettered avatar derived from the handle — honest, looks
@@ -68,7 +76,7 @@ object Avatars {
 
     /** Load [urls] into [view], falling back to a lettered avatar when none resolve. */
     fun load(view: ImageView, urls: List<String>, label: String? = null) {
-        loadAt(view, urls, 0, label)
+        loadAt(view, urls, 0, label, 0)
     }
 
     /**
@@ -77,8 +85,19 @@ object Avatars {
      * propagates out of the callback as a `CallbackException` and kills the process. So the
      * retry is always posted to the view's queue, which puts it back on the main thread
      * outside the callback.
+     *
+     * `attempt` allows one retry of the SAME url before moving on. Glide's built-in HTTP
+     * timeout is only 2.5s, which a cold serverless start can exceed; the failed request has
+     * already warmed the function, so the second attempt normally succeeds. Without this, a
+     * slow first load fell straight through to the initials even though the server was fine.
      */
-    private fun loadAt(view: ImageView, urls: List<String>, index: Int, label: String?) {
+    private fun loadAt(
+        view: ImageView,
+        urls: List<String>,
+        index: Int,
+        label: String?,
+        attempt: Int
+    ) {
         if (index >= urls.size) {
             view.setImageDrawable(initials(view.context, label))
             return
@@ -86,6 +105,8 @@ object Avatars {
 
         Glide.with(view)
             .load(urls[index])
+            // Never let an empty/partial response be cached under this URL (see note 5).
+            .diskCacheStrategy(DiskCacheStrategy.NONE)
             .placeholder(R.drawable.tt_surface_elevated)
             .centerCrop()
             .listener(object : RequestListener<Drawable> {
@@ -96,7 +117,10 @@ object Avatars {
                     isFirstResource: Boolean
                 ): Boolean {
                     // Deferred: starting the next load here is what Glide forbids.
-                    view.post { loadAt(view, urls, index + 1, label) }
+                    view.postDelayed({
+                        if (attempt == 0) loadAt(view, urls, index, label, 1)
+                        else loadAt(view, urls, index + 1, label, 0)
+                    }, 500)
                     return true
                 }
 
