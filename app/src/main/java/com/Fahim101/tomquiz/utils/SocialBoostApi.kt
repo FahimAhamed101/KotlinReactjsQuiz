@@ -418,6 +418,24 @@ object SocialBoostApi {
     }
 
     /**
+     * POST /api/v6/coins/purchase -> redeem a Google Play receipt for a coin pack.
+     *
+     * The server verifies the receipt with Google Play, consumes it, credits
+     * `action_count` coins in one transaction, and returns the refreshed user block.
+     *
+     * The client must NOT add the coins itself. It used to (`coinsBalance += 1000`), so the
+     * balance looked topped up until the next refresh quietly reverted it — the coins were
+     * never on the server at all.
+     */
+    fun purchaseCoins(token: String, productId: Int, purchaseToken: String): JSONObject {
+        val body = JSONObject().apply {
+            put("product_id", productId)
+            put("purchase_token", purchaseToken)
+        }
+        return call("POST", "/api/v6/coins/purchase", body, token)
+    }
+
+    /**
      * POST /api/v6/orders -> place a coin-paid boost order for the caller's own
      * TikTok account. The server charges `coins_price` and returns the order.
      *

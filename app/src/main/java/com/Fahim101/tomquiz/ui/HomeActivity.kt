@@ -148,6 +148,12 @@ class HomeActivity : AppCompatActivity() {
     // Pending Play order for boost products (followers/likes bought with money)
     private var pendingPlayOrderId: Int = 0
 
+    /** The last /v6/products payload, so coin packs can be looked up by billing id. */
+    private var serverProducts: List<SocialBoostApi.BoostProduct> = emptyList()
+
+    /** The coin pack the user tapped, kept so the receipt is credited to the right one. */
+    private var pendingCoinPack: SocialBoostApi.BoostProduct? = null
+
     // Subscription pricing views, kept in sync with Google Play's localised price
     private var tvSubPrice: TextView? = null
     private var tvSubBadge: TextView? = null
@@ -332,16 +338,12 @@ class HomeActivity : AppCompatActivity() {
      * Notifies the backend to verify the receipt and activate the pending order.
      */
     private fun handleBoostPurchaseSuccess(productId: String, purchaseToken: String, googleOrderId: String) {
-        if (productId == "tt_coin_19_99") {
-            coinsBalance += 1000
-            updateCoinsDisplay()
-            Toast.makeText(this, "1,000 Coins added to your balance! 🪙", Toast.LENGTH_LONG).show()
-            return
-        }
-        if (productId == "tt_coin_99_99") {
-            coinsBalance += 10000
-            updateCoinsDisplay()
-            Toast.makeText(this, "10,000 Coins added to your balance! 🪙", Toast.LENGTH_LONG).show()
+        // A coin pack is not an order: there is nothing to deliver on the TikTok side, and the
+        // balance must be credited by the server after it verifies the receipt. This used to
+        // add 1,000 / 10,000 to the LOCAL balance only, so the coins disappeared on the next
+        // refresh and the amounts did not even match the packs (17,000 / 50,000).
+        if (productId == "tt_coin_19_99" || productId == "tt_coin_99_99") {
+            creditCoinPack(productId, purchaseToken)
             return
         }
 
@@ -550,7 +552,10 @@ class HomeActivity : AppCompatActivity() {
         refreshCoinsFromServer(silent = true)
 
         findViewById<View>(R.id.chip_coins).setOnClickListener {
-            refreshCoinsFromServer(silent = false)
+            // The balance chip is the most discoverable place to top up: tapping it opens the
+            // coin packs. The balance is still refreshed, so the number is live when it opens.
+            refreshCoinsFromServer(silent = true)
+            showBuyCoinsDialog()
         }
     }
 
@@ -1420,7 +1425,111 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupCoinPackButtons() {
-        // Instant coin pack cards removed to match the authentic SocialBoost Store screenshots
+        // Coin packs live behind the balance chip; see showBuyCoinsDialog().
+    }
+
+    /**
+     * Buy Coins.
+     *
+     * The packs come from the server's `/v6/products` (type "Coins"), so the coin amount and
+     * price are the backend's, not hardcoded in the APK. Tapping a pack opens the Google Play
+     * sheet; coins are credited only after `/v6/coins/purchase` verifies the receipt.
+     */
+    private fun showBuyCoinsDialog() {
+        val packs = serverProducts.filter {
+            it.productType?.contains("Coin", ignoreCase = true) == true &&
+                !it.billingProductId.isNullOrBlank()
+        }
+
+        if (packs.isEmpty()) {
+            Toast.makeText(this, "Coin packs are loading — try again in a moment.", Toast.LENGTH_SHORT).show()
+            loadBoostProducts()
+            return
+        }
+
+        val labels = packs.map { pack ->
+            val price = billingManager.getFormattedPrice(pack.billingProductId!!) ?: pack.price ?: "…"
+            "%,d coins  —  %s".format(pack.actionCount, price)
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Buy Coins 🪙")
+            .setItems(labels) { _, which -> startCoinPackPurchase(packs[which]) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun startCoinPackPurchase(pack: SocialBoostApi.BoostProduct) {
+        val billingId = pack.billingProductId ?: return
+
+        if (!billingManager.isBillingReady()) {
+            Toast.makeText(this, "Google Play is still connecting — try again in a moment.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!billingManager.isProductAvailable(billingId)) {
+            // Honest and actionable: the flow is wired, but Play does not know this product yet.
+            Toast.makeText(
+                this,
+                "This coin pack isn't live in Google Play yet (\"$billingId\"). " +
+                    "Publish it in Play Console > Monetise > In-app products, then try again.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        pendingCoinPack = pack
+        billingManager.launchPurchaseFlow(billingId)
+    }
+
+    /** Credit a verified coin-pack receipt on the server, then re-sync the balance. */
+    private fun creditCoinPack(billingProductId: String, purchaseToken: String) {
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
+        if (token.isNullOrBlank()) {
+            Toast.makeText(this, "Sign in required to complete purchase", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val pack = pendingCoinPack?.takeIf { it.billingProductId == billingProductId }
+            ?: serverProducts.firstOrNull { it.billingProductId == billingProductId }
+        if (pack == null) {
+            Log.w("HomeActivity", "coin pack not found for $billingProductId")
+            Toast.makeText(
+                this,
+                "Payment received, but the pack could not be matched. Contact support with your Google Play order id.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        Toast.makeText(this, "Crediting ${pack.actionCount} coins…", Toast.LENGTH_SHORT).show()
+
+        Thread {
+            try {
+                SocialBoostApi.purchaseCoins(token, pack.id, purchaseToken)
+                val coins = try {
+                    SocialBoostApi.fetchCoins(token)
+                } catch (_: Exception) {
+                    coinsBalance + pack.actionCount
+                }
+
+                runOnUiThread {
+                    coinsBalance = coins
+                    updateCoinsDisplay()
+                    pendingCoinPack = null
+                    Toast.makeText(this, "%,d coins added! 🪙".format(pack.actionCount), Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Log.w("HomeActivity", "coin credit failed: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Payment received, but coins could not be credited: ${e.message ?: "unknown error"}. " +
+                            "Contact support with your Google Play order id.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
     }
 
     private fun refreshTokenSilently(onSuccess: (String) -> Unit) {
@@ -1451,6 +1560,7 @@ class HomeActivity : AppCompatActivity() {
     private fun loadBoostProducts() {
         val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
         if (token.isNullOrBlank()) {
+            serverProducts = emptyList()
             boostAdapter.updateServerProducts(emptyList())
             return
         }
@@ -1459,6 +1569,9 @@ class HomeActivity : AppCompatActivity() {
             try {
                 val products = SocialBoostApi.fetchProducts(token)
                 runOnUiThread {
+                    // Kept raw as well: the adapter only renders Follow/Like, so the Coins
+                    // packs would otherwise be dropped before the Buy Coins dialog can see them.
+                    serverProducts = products
                     boostAdapter.updateServerProducts(products)
                 }
             } catch (e: Exception) {
@@ -1468,7 +1581,10 @@ class HomeActivity : AppCompatActivity() {
                         Thread {
                             try {
                                 val retry = SocialBoostApi.fetchProducts(freshToken)
-                                runOnUiThread { boostAdapter.updateServerProducts(retry) }
+                                runOnUiThread {
+                                    serverProducts = retry
+                                    boostAdapter.updateServerProducts(retry)
+                                }
                             } catch (_: Exception) {}
                         }.start()
                     }
