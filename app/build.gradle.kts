@@ -11,8 +11,8 @@ android {
         applicationId = "com.Fahim101.tomquiz"
         minSdk = 29
         targetSdk = 36
-        versionCode = 18
-        versionName = "18.0"
+        versionCode = 19
+        versionName = "19.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
