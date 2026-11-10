@@ -71,7 +71,11 @@ class TaskOrderAdapter(
             )
         )
 
-        Avatars.load(holder.ivAvatar, Avatars.candidates(item.username, item.image), item.username)
+        Avatars.load(
+            holder.ivAvatar,
+            Avatars.candidates(item.username, item.platform, item.image),
+            item.username
+        )
     }
 
     fun submit(newItems: List<SocialBoostApi.OrderHistoryItem>) {

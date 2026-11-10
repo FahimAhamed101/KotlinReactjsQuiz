@@ -109,7 +109,66 @@
                 android:textColor="@color/tt_text_secondary"
                 android:textSize="14sp" />
 
+            <!-- ============ Platform picker: TikTok, Instagram or Facebook ============ -->
+            <!--
+              Which network the handle belongs to.
+
+              This is not decoration: the same handle is a different person on TikTok
+              and Instagram, so the app has to ask before it can fetch the right
+              profile picture and follower count. The server keys its accounts by
+              (platform, username), and resolving `@demo` on the wrong network would
+              show a stranger's face.
+
+              Facebook is the same idea with a different input: users paste a page or
+              profile link (or its numeric id) rather than an @handle.
+            -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/platform_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_platform_tiktok"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:text="@string/tt_platform_tiktok"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/tt_divider"
+                    app:strokeWidth="1dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_platform_instagram"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:text="@string/tt_platform_instagram"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/tt_divider"
+                    app:strokeWidth="1dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_platform_facebook"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:text="@string/tt_platform_facebook"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/tt_divider"
+                    app:strokeWidth="1dp" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/username_layout"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -149,6 +208,7 @@
 
             <!-- ================= Optional: hand the identity check to TikTok ================= -->
             <LinearLayout
+                android:id="@+id/divider_top"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"

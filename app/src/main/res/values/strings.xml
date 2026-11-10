@@ -54,8 +54,19 @@
     <!-- ================= Sign-in screen ================= -->
     <string name="tt_tagline">Earn coins. Boost your social.</string>
     <string name="tt_welcome">Welcome!</string>
-    <string name="tt_welcome_sub">Enter your TikTok username to start earning coins by following and liking, then spend them on boosts or source codes.</string>
-    <string name="tt_username_hint">TikTok username</string>
+    <string name="tt_welcome_sub">Enter your TikTok or Instagram username — or paste a Facebook page or profile link — to start earning coins by following and liking, then spend them on boosts or source codes.</string>
+    <string name="tt_username_hint">Username</string>
+    <!-- The field hint follows the platform toggle: "TikTok username" became a lie as
+         soon as Instagram was selectable. -->
+    <string name="tt_username_hint_tiktok">TikTok username</string>
+    <string name="tt_username_hint_instagram">Instagram username</string>
+    <string name="tt_username_hint_facebook">Facebook page or profile URL</string>
+    <string name="tt_platform_tiktok">TikTok</string>
+    <string name="tt_platform_instagram">Instagram</string>
+    <string name="tt_platform_facebook">Facebook</string>
+    <!-- The "hand off to the network's own app" shortcut, labelled per platform. -->
+    <string name="tt_already_signed_in">Already signed in to %1$s</string>
+    <string name="tt_already_hint">We open %1$s — where you are already logged in. Copy your profile link there and come back; we fill your username in automatically.</string>
     <string name="tt_get_started">Get Started ⚡</string>
     <!-- Optional second sign-in path: hand the identity check over to TikTok itself. -->
     <string name="tt_or">or</string>
@@ -123,8 +134,10 @@
     <string name="tt_add_video_step2">Choose \"Copy link\", then paste it in the field above and tap Add Video.</string>
     <string name="tt_add_video_note">The link must point at one video, not your profile.</string>
     <string name="tt_pick_from_videos">Or pick one of my videos</string>
-    <string name="tt_add_video_empty">Paste the video link first.</string>
+    <string name="tt_add_video_empty">Paste the post link first.</string>
     <string name="tt_add_video_bad_link">That is not a TikTok video link. It should look like tiktok.com/@you/video/1234567890</string>
+    <string name="tt_add_post_bad_link_instagram">That is not an Instagram post link. It should look like instagram.com/p/abc123/</string>
+    <string name="tt_add_post_bad_link_facebook">That is not a Facebook post link. It should look like facebook.com/yourpage/posts/123</string>
     <string name="tt_add_video_ok">Video link added.</string>
     <string name="tt_video_required">Pick a video before buying likes.</string>
 
@@ -177,4 +190,24 @@
     <string name="tt_preview_continue">Yes, continue</string>
     <string name="tt_preview_not_me">Not me</string>
     <string name="tt_preview_no_key">This server has no TikTok API key, so it sent a placeholder picture and invented follower counts. Add RAPID_API_KEY to see the real profile.</string>
+
+    <!-- ===================== New order: order-type grid ===================== -->
+    <string name="tt_new_order_title">What do you want\nto order?</string>
+    <string name="tt_order_type_soon">Soon</string>
+    <string name="tt_order_type_unavailable_title">%1$s orders aren\'t available yet</string>
+    <string name="tt_order_type_unavailable_body">Only Followers and Likes can be delivered by this server. A %1$s order has no provider behind it, so it would take your coins without ever arriving.\n\nNothing has been charged.</string>
+
+    <!-- ===================== New order: choose the target ===================== -->
+    <string name="tt_new_order_target_title">Paste a link or choose a video</string>
+    <string name="tt_new_order_how_to_find">How to\nfind a link?</string>
+    <string name="tt_new_order_link_hint">tiktok.com/videolink</string>
+    <string name="tt_new_order_videos_title">Your videos</string>
+    <string name="tt_new_order_no_videos">No videos could be listed for this account. Paste a link above instead.</string>
+    <string name="tt_new_order_profile_target">Followers are added to your own profile @%1$s. Nothing to paste.</string>
+    <string name="tt_new_order_pick_video_first">Choose the video you want %1$s on first.</string>
+
+    <!-- ===================== Profile stats row ===================== -->
+    <string name="tt_stat_following">Following</string>
+    <string name="tt_stat_followers">Followers</string>
+    <string name="tt_stat_likes">Likes</string>
 </resources>

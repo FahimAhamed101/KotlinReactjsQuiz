@@ -10,10 +10,13 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -35,6 +38,7 @@ import android.widget.ViewFlipper
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.Fahim101.tomquiz.R
@@ -45,6 +49,8 @@ import com.Fahim101.tomquiz.model.CodeItem
 import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.BillingManager
 import com.Fahim101.tomquiz.utils.Constants
+import com.Fahim101.tomquiz.utils.OrderType
+import com.Fahim101.tomquiz.utils.Platforms
 import com.Fahim101.tomquiz.utils.SocialBoostApi
 import com.google.android.material.imageview.ShapeableImageView
 import org.json.JSONObject
@@ -153,6 +159,22 @@ class HomeActivity : AppCompatActivity() {
 
     /** The coin pack the user tapped, kept so the receipt is credited to the right one. */
     private var pendingCoinPack: SocialBoostApi.BoostProduct? = null
+
+    /** Which tile the New order grid is on. Drives the target picker and the package list. */
+    private var selectedOrderType: OrderType = OrderType.DEFAULT
+
+    /** The account's own posts, for the horizontal strip on the New order screen. */
+    private val orderVideos = mutableListOf<TikTokVideoSample>()
+
+    /** The strip's adapter, built once and re-notified — the layout is never rebuilt. */
+    private var orderVideoAdapter: RecyclerView.Adapter<*>? = null
+
+    /**
+     * The handle the strip's posts belong to. Only TikTok can list posts, and the list is
+     * the same for every order type, so it is fetched once per account instead of on every
+     * tile tap.
+     */
+    private var orderVideosFetchedFor: String? = null
 
     // Subscription pricing views, kept in sync with Google Play's localised price
     private var tvSubPrice: TextView? = null
@@ -576,14 +598,21 @@ class HomeActivity : AppCompatActivity() {
     private fun loadProfileAvatar() {
         val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
         val cached = prefs.getString(Constants.KEY_AVATAR_URL, null)
+        val platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
 
-        paintAvatar(handle, cached)
+        paintAvatar(handle, platform, cached)
         refreshProfileFromServer()
     }
 
-    /** Render one account's picture into both rings, falling back down the URL list. */
-    private fun paintAvatar(handle: String?, avatarUrl: String?) {
-        val urls = Avatars.candidates(handle, avatarUrl)
+    /**
+     * Render one account's picture into both rings, falling back down the URL list.
+     *
+     * `platform` is required by the mirror URL: the server keys avatars by
+     * (platform, username), so an unscoped request would hand back the other network's
+     * picture for the same handle.
+     */
+    private fun paintAvatar(handle: String?, platform: String, avatarUrl: String?) {
+        val urls = Avatars.candidates(handle, platform, avatarUrl)
         listOf(R.id.iv_top_avatar, R.id.iv_more_avatar).forEach { id ->
             findViewById<ImageView>(id)?.let { Avatars.load(it, urls, handle) }
         }
@@ -598,10 +627,13 @@ class HomeActivity : AppCompatActivity() {
         val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null) ?: return
         val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
         val secUid = prefs.getString(Constants.KEY_SEC_UID, null)
+        // The signed-in network. `/v6/me` keys its account lookup by (platform, username),
+        // so omitting this asks for the TikTok row of an Instagram handle.
+        val platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
 
         Thread {
             try {
-                val profile = SocialBoostApi.fetchProfile(token, handle, secUid)
+                val profile = SocialBoostApi.fetchProfile(token, handle, secUid, platform)
 
                 if (profile == null) {
                     // Deployed builds predate `tiktok_info` on /v6/me, so there is no
@@ -616,10 +648,15 @@ class HomeActivity : AppCompatActivity() {
                         null
                     }
                     if (!fallback.isNullOrBlank()) {
-                        runOnUiThread { paintAvatar(handle, fallback) }
+                        runOnUiThread { paintAvatar(handle, platform, fallback) }
                     }
                     return@Thread
                 }
+
+                // Fill the profile card's stat row here rather than at the end: the row
+                // does not depend on whether the avatar changed, and this function returns
+                // early when it has not.
+                runOnUiThread { paintProfileStats(profile) }
 
                 val resolvedHandle = profile.username ?: handle
                 // Prefer the server's mirror path; keep the CDN URL only as a fallback.
@@ -637,7 +674,7 @@ class HomeActivity : AppCompatActivity() {
                     .apply()
 
                 runOnUiThread {
-                    paintAvatar(resolvedHandle, best)
+                    paintAvatar(resolvedHandle, platform, best)
                     profile.nickname?.let { tvGreeting.text = "Hello, $it 👋" }
                 }
             } catch (e: Exception) {
@@ -645,6 +682,22 @@ class HomeActivity : AppCompatActivity() {
                 Log.d("HomeActivity", "profile refresh skipped: ${e.message}")
             }
         }.start()
+    }
+
+    /**
+     * Following / Followers / Likes on the profile card.
+     *
+     * `profile.likes` is null when the network exposes no such figure — Instagram and
+     * Facebook both report none, and the server sends an explicit null for them — so that
+     * cell is left at the em dash the layout ships rather than overwritten with a
+     * confident "0" that the user would read as a real count.
+     */
+    private fun paintProfileStats(profile: SocialBoostApi.ProfileInfo) {
+        findViewById<TextView>(R.id.tv_more_following)?.text = profile.following.toString()
+        findViewById<TextView>(R.id.tv_more_followers)?.text = profile.followers.toString()
+        profile.likes?.let {
+            findViewById<TextView>(R.id.tv_more_likes)?.text = it.toString()
+        }
     }
 
     private fun updateCoinsDisplay() {
@@ -1178,70 +1231,368 @@ class HomeActivity : AppCompatActivity() {
         rvBoostProducts.isNestedScrollingEnabled = false
         rvBoostProducts.adapter = boostAdapter
 
+        makeBoostListsNonFocusable()
+
         updateBoostTargetAccountInfo()
-
-        val tabProfile = findViewById<View>(R.id.tab_boost_profile)
-        val tvTabProfile = findViewById<TextView>(R.id.tv_tab_profile)
-        val indicatorProfile = findViewById<View>(R.id.indicator_tab_profile)
-
-        val tabVideo = findViewById<View>(R.id.tab_boost_video)
-        val tvTabVideo = findViewById<TextView>(R.id.tv_tab_video)
-        val indicatorVideo = findViewById<View>(R.id.indicator_tab_video)
-
-        val cardVideoSelection = findViewById<View>(R.id.card_video_target_selection)
-
-        tabProfile?.setOnClickListener {
-            tvTabProfile?.setTextColor(ContextCompat.getColor(this, R.color.white))
-            tvTabProfile?.setTypeface(null, Typeface.BOLD)
-            indicatorProfile?.visibility = View.VISIBLE
-
-            tvTabVideo?.setTextColor(ContextCompat.getColor(this, R.color.tt_text_secondary))
-            tvTabVideo?.setTypeface(null, Typeface.NORMAL)
-            indicatorVideo?.visibility = View.INVISIBLE
-
-            cardVideoSelection?.visibility = View.GONE
-            boostAdapter.setTab(BoostAdapter.BoostTab.PROFILE)
-        }
-
-        tabVideo?.setOnClickListener {
-            tvTabVideo?.setTextColor(ContextCompat.getColor(this, R.color.white))
-            tvTabVideo?.setTypeface(null, Typeface.BOLD)
-            indicatorVideo?.visibility = View.VISIBLE
-
-            tvTabProfile?.setTextColor(ContextCompat.getColor(this, R.color.tt_text_secondary))
-            tvTabProfile?.setTypeface(null, Typeface.NORMAL)
-            indicatorProfile?.visibility = View.INVISIBLE
-
-            // This used to be GONE here as well as on the Profile tab, and nothing ever
-            // made it visible again — so the video picker had no entry point at all and a
-            // likes order could never name a video. It belongs on this tab: likes are
-            // bought for one video, followers for a whole profile.
-            cardVideoSelection?.visibility = View.VISIBLE
-            updateSelectedVideoBanner()
-            boostAdapter.setTab(BoostAdapter.BoostTab.VIDEO)
-        }
-
-        // Pasting a link is the primary path: a likes order names one video, and the link
-        // is what the people doing the task open. The grid is offered from inside the paste
-        // screen as a convenience, not as a gate in front of it.
-        cardVideoSelection?.setOnClickListener {
-            showAddVideoLinkDialog()
-        }
+        setupOrderTypeGrid()
+        setupOrderTargetPicker()
+        selectOrderType(OrderType.DEFAULT)
 
         setupCoinPackButtons()
         loadBoostProducts()
     }
 
-    private fun updateSelectedVideoBanner() {
-        val tvTitle = findViewById<TextView>(R.id.tv_selected_video_title) ?: return
-        val tvSubtitle = findViewById<TextView>(R.id.tv_selected_video_subtitle) ?: return
-        if (!selectedVideoTitleStr.isNullOrBlank()) {
-            tvTitle.text = selectedVideoTitleStr
-            tvSubtitle.text = "Target video selected for TikTok Likes"
-        } else {
-            tvTitle.text = "Paste your video link ❤️"
-            tvSubtitle.text = "Tap to paste the TikTok video you want liked"
+    /**
+     * Stop the three lists on the New order screen from taking focus.
+     *
+     * `RecyclerView` calls `setFocusableInTouchMode(true)` in its constructor — *after* the
+     * XML attributes have been applied — so `android:focusable="false"` in the layout has
+     * no effect. That was harmless while the package list owned its own scroll area, but
+     * the screen is now a single `NestedScrollView`: a focusable child taller than the
+     * viewport makes the scroll view pull the child's **bottom** into view, so the screen
+     * opened scrolled past the heading and the order-type grid.
+     *
+     * Turning focus off costs nothing here — touch scrolling and item clicks do not need it.
+     */
+    private fun makeBoostListsNonFocusable() {
+        for (id in intArrayOf(R.id.rv_boost_products, R.id.rv_order_types, R.id.rv_order_videos)) {
+            findViewById<View>(id)?.let {
+                it.isFocusable = false
+                it.isFocusableInTouchMode = false
+            }
         }
+    }
+
+    /**
+     * "What do you want to order?" — the two-column grid of order types.
+     *
+     * Bound straight from [OrderType.values], so the tiles and the capability flags cannot
+     * drift apart: adding a type to the enum adds its tile here. Updates repaint through
+     * `notifyDataSetChanged` rather than a retained view list, because the grid is five
+     * fixed tiles and keeping view references alive across layout passes is how grids like
+     * this end up highlighting a recycled view.
+     *
+     * This replaced the old Profile / Video tab pair. The tabs only ever offered the two
+     * types we could deliver, which hid the shape of the product; the grid shows every type
+     * the reference app offers and marks the ones this server cannot fill.
+     */
+    private fun setupOrderTypeGrid() {
+        val rv = findViewById<RecyclerView>(R.id.rv_order_types) ?: return
+        rv.layoutManager = GridLayoutManager(this, 2)
+        rv.isNestedScrollingEnabled = false
+
+        rv.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            override fun getItemCount(): Int = OrderType.values().size
+
+            override fun onCreateViewHolder(
+                parent: ViewGroup,
+                viewType: Int
+            ): RecyclerView.ViewHolder {
+                val v = LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_order_type_tile, parent, false)
+                return object : RecyclerView.ViewHolder(v) {}
+            }
+
+            override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                val type = OrderType.values()[position]
+                val tile = holder.itemView
+
+                tile.findViewById<ImageView>(R.id.iv_order_type_icon).setImageResource(type.iconRes)
+                tile.findViewById<TextView>(R.id.tv_order_type_label).text = type.label
+                tile.findViewById<TextView>(R.id.tv_order_type_badge).visibility =
+                    if (type.available) View.GONE else View.VISIBLE
+
+                // Selected wins over availability: a "Soon" tile still has to look chosen
+                // once tapped, otherwise the tap appears to do nothing.
+                val colour = ContextCompat.getColor(
+                    this@HomeActivity,
+                    when {
+                        type == selectedOrderType -> R.color.tt_teal
+                        type.available -> R.color.tt_text_primary
+                        else -> R.color.tt_text_secondary
+                    }
+                )
+                tile.isSelected = type == selectedOrderType
+                tile.alpha = if (type.available || type == selectedOrderType) 1f else 0.75f
+                tile.findViewById<ImageView>(R.id.iv_order_type_icon).setColorFilter(colour)
+                tile.findViewById<TextView>(R.id.tv_order_type_label).setTextColor(colour)
+
+                tile.setOnClickListener { selectOrderType(type) }
+            }
+        }
+    }
+
+    /**
+     * Switch the New order screen to an order type.
+     *
+     * Followers and Likes select normally and reveal their packages. Shares, Comments and
+     * Views select too — so the refusal is visible and explained — but the package list is
+     * replaced by a note. They must never reach an order: the server stores one `is_likes`
+     * boolean per order and has no provider configured for any other action, so an order
+     * would take coins for work nothing can perform. Same failure class as the mock
+     * purchase fallback removed in PURCHASE_FIX_REPORT.md.
+     */
+    private fun selectOrderType(type: OrderType) {
+        selectedOrderType = type
+        findViewById<RecyclerView>(R.id.rv_order_types)?.adapter?.notifyDataSetChanged()
+
+        val targetPicker = findViewById<View>(R.id.card_video_target_selection)
+        val profileNote = findViewById<TextView>(R.id.tv_profile_target_note)
+        val unavailable = findViewById<TextView>(R.id.tv_order_type_unavailable)
+        val packagesTitle = findViewById<View>(R.id.tv_packages_title)
+        val products = findViewById<View>(R.id.rv_boost_products)
+
+        if (!type.available) {
+            targetPicker?.visibility = View.GONE
+            profileNote?.visibility = View.GONE
+            products?.visibility = View.GONE
+            packagesTitle?.visibility = View.GONE
+            unavailable?.visibility = View.VISIBLE
+            unavailable?.text = getString(R.string.tt_order_type_unavailable_body, type.label)
+            Toast.makeText(
+                this,
+                getString(R.string.tt_order_type_unavailable_title, type.label),
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        unavailable?.visibility = View.GONE
+        products?.visibility = View.VISIBLE
+        packagesTitle?.visibility = View.VISIBLE
+
+        if (type.needsVideoTarget) {
+            targetPicker?.visibility = View.VISIBLE
+            profileNote?.visibility = View.GONE
+            updateSelectedVideoBanner()
+            loadOrderVideos()
+        } else {
+            targetPicker?.visibility = View.GONE
+            profileNote?.visibility = View.VISIBLE
+            profileNote?.text = getString(
+                R.string.tt_new_order_profile_target,
+                prefs.getString(Constants.KEY_TIKTOK_USERNAME, null) ?: "you"
+            )
+        }
+
+        boostAdapter.setTab(
+            if (type == OrderType.LIKES) BoostAdapter.BoostTab.VIDEO
+            else BoostAdapter.BoostTab.PROFILE
+        )
+        boostAdapter.refreshAffordability()
+    }
+
+    /** The link field, its paste button, and the "How to find a link?" help. */
+    private fun setupOrderTargetPicker() {
+        val input = findViewById<EditText>(R.id.et_order_link)
+        val error = findViewById<TextView>(R.id.tv_order_link_error)
+
+        // Pasting is the primary path in the reference app, so the button reads the
+        // clipboard, fills the field and validates in one step.
+        findViewById<View>(R.id.btn_paste_order_link)?.setOnClickListener {
+            val clip = (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
+            val text = clip?.getItemAt(0)?.coerceToText(this)?.toString().orEmpty().trim()
+            if (text.isBlank()) {
+                error?.text = getString(R.string.tt_add_video_empty)
+                error?.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+            input?.setText(text)
+            input?.setSelection(text.length)
+            commitOrderLink()
+        }
+
+        input?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                commitOrderLink()
+                true
+            } else {
+                false
+            }
+        }
+
+        input?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (error?.visibility == View.VISIBLE) error.visibility = View.GONE
+            }
+        })
+
+        findViewById<View>(R.id.tv_how_to_find_link)?.setOnClickListener {
+            showHowToFindLinkDialog()
+        }
+    }
+
+    /**
+     * Validate whatever is in the link field and adopt it as the order target.
+     *
+     * @return true when the field now holds a usable link.
+     */
+    private fun commitOrderLink(): Boolean {
+        val input = findViewById<EditText>(R.id.et_order_link) ?: return false
+        val error = findViewById<TextView>(R.id.tv_order_link_error)
+        val raw = input.text.toString().trim()
+
+        if (raw.isBlank()) {
+            error?.text = getString(R.string.tt_add_video_empty)
+            error?.visibility = View.VISIBLE
+            return false
+        }
+
+        // The link has to belong to the network the user signed in with — a TikTok URL on
+        // an Instagram account produces an order the server cannot read.
+        val parsed = normalizeVideoLink(raw)
+        if (parsed == null) {
+            error?.text = getString(
+                when (Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))) {
+                    Platforms.INSTAGRAM -> R.string.tt_add_post_bad_link_instagram
+                    Platforms.FACEBOOK -> R.string.tt_add_post_bad_link_facebook
+                    else -> R.string.tt_add_video_bad_link
+                }
+            )
+            error?.visibility = View.VISIBLE
+            return false
+        }
+
+        error?.visibility = View.GONE
+        applySelectedVideo(parsed.first, parsed.second, "Video ${parsed.first.ifBlank { "link" }}")
+        return true
+    }
+
+    /** "How to find a link?" — concrete, per network. */
+    private fun showHowToFindLinkDialog() {
+        val body = when (Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))) {
+            Platforms.INSTAGRAM ->
+                "1. Open the post in Instagram.\n2. Tap the ⋯ button at the top right.\n3. Tap Copy link.\n4. Come back and paste it above."
+            Platforms.FACEBOOK ->
+                "1. Open the post in Facebook.\n2. Tap the ⋯ button under it.\n3. Tap Copy link.\n4. Come back and paste it above."
+            else ->
+                "1. Open the video in TikTok.\n2. Tap Share (the arrow).\n3. Tap Copy link.\n4. Come back and paste it above."
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tt_new_order_how_to_find).replace("\n", " "))
+            .setMessage(body)
+            .setPositiveButton(R.string.tt_done, null)
+            .show()
+    }
+
+    /**
+     * Fill the horizontal video strip with the account's own posts.
+     *
+     * Only TikTok can list a user's posts; for the other networks the server answers with
+     * an empty page on purpose. That is why the strip says so rather than silently showing
+     * nothing — the paste field is the way in, and the user should know that.
+     *
+     * Fetched once per handle: the list does not depend on the order type, so re-entering
+     * the Likes tile should not re-hit the provider.
+     */
+    private fun loadOrderVideos() {
+        val rv = findViewById<RecyclerView>(R.id.rv_order_videos) ?: return
+        val progress = findViewById<View>(R.id.progress_order_videos)
+        val empty = findViewById<TextView>(R.id.tv_order_videos_empty)
+        val title = findViewById<View>(R.id.tv_order_videos_title)
+
+        rv.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        rv.isNestedScrollingEnabled = false
+
+        if (orderVideoAdapter == null) {
+            orderVideoAdapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                override fun getItemCount(): Int = orderVideos.size
+
+                override fun onCreateViewHolder(
+                    parent: ViewGroup,
+                    viewType: Int
+                ): RecyclerView.ViewHolder {
+                    val v = LayoutInflater.from(parent.context)
+                        .inflate(R.layout.item_video_thumb, parent, false)
+                    return object : RecyclerView.ViewHolder(v) {}
+                }
+
+                override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                    val item = orderVideos[position]
+                    val thumb = holder.itemView.findViewById<ImageView>(R.id.iv_order_video_thumb)
+                    holder.itemView.findViewById<TextView>(R.id.tv_order_video_likes).text = item.likes
+
+                    if (item.thumbUrl.isNotBlank()) {
+                        Glide.with(this@HomeActivity)
+                            .load(item.thumbUrl)
+                            .placeholder(R.drawable.bg_gradient_dark)
+                            .into(thumb)
+                    } else {
+                        thumb.setImageResource(R.drawable.bg_gradient_dark)
+                    }
+
+                    holder.itemView.setOnClickListener {
+                        applySelectedVideo(item.id, item.url, "${item.title} (${item.likes} ❤️)")
+                    }
+                }
+            }
+            rv.adapter = orderVideoAdapter
+        }
+
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
+        val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
+
+        if (token.isNullOrBlank() || handle.isNullOrBlank()) {
+            orderVideos.clear()
+            orderVideoAdapter?.notifyDataSetChanged()
+            title?.visibility = View.GONE
+            empty?.visibility = View.GONE
+            return
+        }
+
+        if (orderVideosFetchedFor == handle && orderVideos.isNotEmpty()) return
+
+        title?.visibility = View.VISIBLE
+        progress?.visibility = View.VISIBLE
+        empty?.visibility = View.GONE
+
+        Thread {
+            val posts = try {
+                SocialBoostApi.fetchPosts(
+                    token,
+                    handle,
+                    platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null)),
+                )
+            } catch (e: Exception) {
+                Log.w("HomeActivity", "order video strip failed: ${e.message}")
+                emptyList()
+            }
+            runOnUiThread {
+                progress?.visibility = View.GONE
+                orderVideos.clear()
+                orderVideos.addAll(
+                    posts.map {
+                        TikTokVideoSample(it.id, it.title, it.thumbUrl, it.likes, it.comments, it.url)
+                    }
+                )
+                orderVideoAdapter?.notifyDataSetChanged()
+                orderVideosFetchedFor = handle
+                empty?.visibility = if (orderVideos.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }.start()
+    }
+
+    /** Keep the link field showing whichever target is currently selected. */
+    private fun updateSelectedVideoBanner() {
+        val input = findViewById<EditText>(R.id.et_order_link) ?: return
+        val target = selectedVideoUrl
+        if (!target.isNullOrBlank() && input.text.toString().trim() != target) {
+            input.setText(target)
+            input.setSelection(target.length)
+        }
+    }
+
+    /** Point the user at the target picker when a post-scoped order has no post yet. */
+    private fun promptForOrderTarget() {
+        Toast.makeText(
+            this,
+            getString(R.string.tt_new_order_pick_video_first, selectedOrderType.label),
+            Toast.LENGTH_LONG
+        ).show()
+        val input = findViewById<EditText>(R.id.et_order_link)
+        input?.requestFocus()
     }
 
     /**
@@ -1322,7 +1673,14 @@ class HomeActivity : AppCompatActivity() {
         if (!token.isNullOrBlank() && !handle.isNullOrBlank()) {
             Thread {
                 val posts = try {
-                    SocialBoostApi.fetchPosts(token, handle)
+                    // Only TikTok can list an account's posts. For the other networks the
+                    // server answers with an empty page, so the picker shows the paste-link
+                    // tile — which is why the platform has to travel with the request.
+                    SocialBoostApi.fetchPosts(
+                        token,
+                        handle,
+                        platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null)),
+                    )
                 } catch (e: Exception) {
                     Log.w("HomeActivity", "video list failed: ${e.message}")
                     emptyList()
@@ -1388,7 +1746,13 @@ class HomeActivity : AppCompatActivity() {
 
             val parsed = normalizeVideoLink(raw)
             if (parsed == null) {
-                error.text = getString(R.string.tt_add_video_bad_link)
+                error.text = getString(
+                    when (Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))) {
+                        Platforms.INSTAGRAM -> R.string.tt_add_post_bad_link_instagram
+                        Platforms.FACEBOOK -> R.string.tt_add_post_bad_link_facebook
+                        else -> R.string.tt_add_video_bad_link
+                    }
+                )
                 error.visibility = View.VISIBLE
                 return@setOnClickListener
             }
@@ -1410,6 +1774,29 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun normalizeVideoLink(raw: String): Pair<String, String>? {
         val withScheme = if (raw.startsWith("http", ignoreCase = true)) raw else "https://$raw"
+        val platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+
+        // The post list itself comes from the TikTok scraper, but the "paste a link"
+        // tile must accept the network the user actually signed in with — otherwise an
+        // Instagram or Facebook likes order can never be placed at all.
+        when (platform) {
+            Platforms.INSTAGRAM -> {
+                Regex(
+                    """(?:www\.)?instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)""",
+                    RegexOption.IGNORE_CASE
+                ).find(withScheme)?.let { return it.groupValues[1] to withScheme }
+                return null
+            }
+            Platforms.FACEBOOK -> {
+                Regex(
+                    """(?:www\.|m\.)?(?:facebook|fb)\.com/\S*?(?:posts|videos|photos|reel|p)/([A-Za-z0-9_-]+)""",
+                    RegexOption.IGNORE_CASE
+                ).find(withScheme)?.let { return it.groupValues[1] to withScheme }
+                Regex("""[?&](?:fbid|post_id|story_fbid)=(\d+)""", RegexOption.IGNORE_CASE)
+                    .find(withScheme)?.let { return it.groupValues[1] to withScheme }
+                return null
+            }
+        }
 
         Regex("""(?:www\.|m\.)?tiktok\.com/@([A-Za-z0-9._-]+)/video/(\d+)""", RegexOption.IGNORE_CASE)
             .find(withScheme)?.let { match ->
@@ -1654,13 +2041,16 @@ class HomeActivity : AppCompatActivity() {
         // makes the server unable to read a like count, and it rejects the order — which is
         // why buying likes never worked. Ask for the video instead of sending a bad order.
         if (isLikes && selectedVideoUrl.isNullOrBlank()) {
-            Toast.makeText(this, getString(R.string.tt_video_required), Toast.LENGTH_LONG).show()
-            showChooseVideoDialog()
+            // The New order screen has its own paste field and video strip now, so send the
+            // user there rather than to the old full-screen picker.
+            promptForOrderTarget()
             return
         }
 
         val postPk = if (isLikes) selectedVideoPostPk else null
-        val targetUrl = if (isLikes) selectedVideoUrl!! else "https://www.tiktok.com/@$handle"
+        val targetUrl = if (isLikes) selectedVideoUrl!! else Constants.profileUrlFor(
+            handle, Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+        )
 
         Thread {
             fun doOrder(authToken: String) {
@@ -1671,7 +2061,8 @@ class HomeActivity : AppCompatActivity() {
                         username = handle,
                         url = targetUrl,
                         productId = product.id,
-                        postPk = postPk
+                        postPk = postPk,
+                        platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
                     )
 
                     val coins = try {
@@ -1738,13 +2129,16 @@ class HomeActivity : AppCompatActivity() {
         val isLikes = (product.productType ?: "").contains("Like", ignoreCase = true)
 
         if (isLikes && selectedVideoUrl.isNullOrBlank()) {
-            Toast.makeText(this, getString(R.string.tt_video_required), Toast.LENGTH_LONG).show()
-            showChooseVideoDialog()
+            // The New order screen has its own paste field and video strip now, so send the
+            // user there rather than to the old full-screen picker.
+            promptForOrderTarget()
             return
         }
 
         val postPk = if (isLikes) selectedVideoPostPk else null
-        val targetUrl = if (isLikes) selectedVideoUrl!! else "https://www.tiktok.com/@$handle"
+        val targetUrl = if (isLikes) selectedVideoUrl!! else Constants.profileUrlFor(
+            handle, Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+        )
 
         Thread {
             fun doPlayOrder(authToken: String) {
@@ -1755,7 +2149,8 @@ class HomeActivity : AppCompatActivity() {
                         username = handle,
                         url = targetUrl,
                         productId = product.id,
-                        postPk = postPk
+                        postPk = postPk,
+                        platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
                     )
 
                     val orderId = result.optInt("id", 0)
@@ -1882,7 +2277,12 @@ class HomeActivity : AppCompatActivity() {
             try {
                 val secUid = prefs.getString(Constants.KEY_SEC_UID, null)
                 val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)
-                val page = SocialBoostApi.fetchTasks(token, secUid, handle, pageToLoad)
+                // The signed-in network. The server resolves the viewer's anchor row by
+                // (platform, username); without it a handle that exists on two networks
+                // can return the other person's row and every follow is judged against
+                // the wrong baseline.
+                val platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+                val page = SocialBoostApi.fetchTasks(token, secUid, handle, pageToLoad, platform)
 
                 runOnUiThread {
                     swipeTasks.isRefreshing = false
@@ -1943,7 +2343,11 @@ class HomeActivity : AppCompatActivity() {
         // Try the server mirror first, then whatever URL the feed supplied. The raw URL
         // is a signed TikTok CDN link that expires, so on its own it eventually 403s and
         // the card loses its picture.
-        Avatars.load(ivTaskAvatar, Avatars.candidates(next.username, next.imageUrl), next.username)
+        Avatars.load(
+            ivTaskAvatar,
+            Avatars.candidates(next.username, next.platform, next.imageUrl),
+            next.username
+        )
     }
 
     private fun showTaskState(loading: Boolean, message: String? = null) {
@@ -2034,7 +2438,8 @@ class HomeActivity : AppCompatActivity() {
                         orderId = task.orderId,
                         url = task.url,
                         ttUsername = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null).orEmpty(),
-                        secUid = prefs.getString(Constants.KEY_SEC_UID, null)
+                        secUid = prefs.getString(Constants.KEY_SEC_UID, null),
+                        platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
                     )
                 } catch (e: Exception) {
                     Log.w("HomeActivity", "like baseline failed: ${e.message}")
@@ -2103,7 +2508,8 @@ class HomeActivity : AppCompatActivity() {
                     ttUsername = handle,
                     targetUsername = task.username,
                     isLikes = task.isLikes,
-                    actionCompleted = true
+                    actionCompleted = true,
+                    platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
                 )
 
                 runOnUiThread {

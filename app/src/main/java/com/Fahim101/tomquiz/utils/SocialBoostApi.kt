@@ -38,7 +38,15 @@ object SocialBoostApi {
         val isLikes: Boolean,
         val rewardCoins: Int,
         val url: String,
-        val postPk: String?
+        val postPk: String?,
+        /**
+         * Which network the task's account belongs to.
+         *
+         * The avatar URL is keyed by (platform, username) — the same handle is a
+         * different person on TikTok and Instagram — so a task card without this would
+         * request the wrong mirror and fall back to a blank/expired picture.
+         */
+        val platform: String = Platforms.DEFAULT
     )
 
     class ApiException(val errorCode: String, message: String?) : Exception(message ?: errorCode)
@@ -79,9 +87,20 @@ object SocialBoostApi {
      * posts; when the provider is unavailable the server returns an empty list and the
      * picker falls back to the Add Video tile alone.
      */
-    fun fetchPosts(token: String, uniqueId: String, count: Int = 24): List<VideoPost> {
+    fun fetchPosts(
+        token: String,
+        uniqueId: String,
+        count: Int = 24,
+        platform: String = Platforms.DEFAULT
+    ): List<VideoPost> {
         if (uniqueId.isBlank()) return emptyList()
-        val payload = call("GET", "/api/v6/posts?unique_id=$uniqueId&count=$count&cursor=0", null, token)
+        val p = Platforms.normalize(platform)
+        val payload = call(
+            "GET",
+            "/api/v6/posts?unique_id=$uniqueId&count=$count&cursor=0&platform=$p",
+            null,
+            token,
+        )
 
         // The route forwards the scraper payload, so the list sits at data.videos. When
         // the provider is down the server sends { code: 0, data: { videos: [] } }.
@@ -97,8 +116,20 @@ object SocialBoostApi {
             if (id.isBlank()) continue
 
             val shareUrl = if (v.isNull("share_url")) null else v.optString("share_url")
+            // Build the fallback with the platform's own URL shape. Assuming a TikTok
+            // `/@user/video/<id>` link for every network produced a link the server's
+            // parser rejects, so selecting that tile failed with "paste a single post".
             val url = shareUrl?.takeIf { it.startsWith("http") }
-                ?: "https://www.tiktok.com/@$uniqueId/video/$id"
+                ?: Constants.profileUrlFor(uniqueId, p).replace(
+                    Regex("/$"),
+                    "",
+                ).let { base ->
+                    when (p) {
+                        Platforms.INSTAGRAM -> "$base/p/$id/"
+                        Platforms.FACEBOOK -> "$base/posts/$id"
+                        else -> "https://www.tiktok.com/@$uniqueId/video/$id"
+                    }
+                }
 
             val title = (if (v.isNull("title")) null else v.optString("title"))
                 ?.takeIf { it.isNotBlank() }
@@ -180,7 +211,7 @@ object SocialBoostApi {
     fun lookupProfile(platform: String, username: String): ProfileInfo? {
         val handle = username.trim().removePrefix("@")
         if (handle.isBlank()) return null
-        val path = "/api/v6/lookup/${platform.lowercase()}/" +
+        val path = "/api/v6/lookup/${Platforms.normalize(platform)}/" +
             java.net.URLEncoder.encode(handle, "UTF-8")
         val data = call("GET", path, null, token = null)
         val info = data.optJSONObject("tiktok_info") ?: return null
@@ -197,7 +228,16 @@ object SocialBoostApi {
             avatarLarger = text("avatarLarger"),
             following = info.optInt("followingCount", 0),
             followers = info.optInt("followerCount", 0),
-            signature = text("signature")
+            // Null, not 0, when the network has no total-likes figure. `has` is checked
+            // first because `optInt` would otherwise turn a missing or null field into 0
+            // and the profile card would claim a real "0 likes".
+            likes = if (!info.has("likeCount") || info.isNull("likeCount")) {
+                null
+            } else {
+                info.optInt("likeCount", 0)
+            },
+            signature = text("signature"),
+            platform = text("platform") ?: Platforms.normalize(platform)
         )
     }
 
@@ -220,16 +260,32 @@ object SocialBoostApi {
         val avatarLarger: String?,
         val following: Int,
         val followers: Int,
-        val signature: String?
+        /**
+         * Total likes the account has received.
+         *
+         * Null means "this network does not expose the figure" — Instagram and Facebook
+         * send null on purpose, and it is deliberately not the same as zero.
+         */
+        val likes: Int?,
+        val signature: String?,
+        /** Which network this profile came from. Absent means TikTok. */
+        val platform: String = Platforms.DEFAULT
     )
 
-    fun fetchProfile(token: String, username: String?, secUid: String?): ProfileInfo? {
+    fun fetchProfile(
+        token: String,
+        username: String?,
+        secUid: String?,
+        platform: String = Platforms.DEFAULT
+    ): ProfileInfo? {
         val query = buildString {
             append("/api/v6/me")
             if (!username.isNullOrBlank()) append("?username=").append(username)
             if (!secUid.isNullOrBlank()) {
                 append(if (username.isNullOrBlank()) "?" else "&").append("sec_uid=").append(secUid)
             }
+            append(if (username.isNullOrBlank() && secUid.isNullOrBlank()) "?" else "&")
+                .append("platform=").append(Platforms.normalize(platform))
         }
         val data = call("GET", query, null, token)
         val info = data.optJSONObject("tiktok_info") ?: return null
@@ -248,7 +304,16 @@ object SocialBoostApi {
             avatarLarger = text("avatarLarger"),
             following = info.optInt("followingCount", 0),
             followers = info.optInt("followerCount", 0),
-            signature = text("signature")
+            // Null, not 0, when the network has no total-likes figure. `has` is checked
+            // first because `optInt` would otherwise turn a missing or null field into 0
+            // and the profile card would claim a real "0 likes".
+            likes = if (!info.has("likeCount") || info.isNull("likeCount")) {
+                null
+            } else {
+                info.optInt("likeCount", 0)
+            },
+            signature = text("signature"),
+            platform = text("platform") ?: Platforms.normalize(platform)
         )
     }
 
@@ -282,12 +347,18 @@ object SocialBoostApi {
         token: String,
         secUid: String?,
         username: String?,
-        page: Int = 1
+        page: Int = 1,
+        platform: String = Platforms.DEFAULT
     ): TaskPage {
         val query = buildString {
             append("/api/v6/orders?page=").append(page)
             if (!secUid.isNullOrBlank()) append("&sec_uid=").append(secUid)
             if (!username.isNullOrBlank()) append("&username=").append(username)
+            // The server keys the viewer's anchor row by (platform, username). Without
+            // this it searches on the handle alone, which is ambiguous the moment the
+            // same handle exists on two networks — it can return a different person's
+            // anchor row, and then every follow is judged against the wrong baseline.
+            append("&platform=").append(Platforms.normalize(platform))
         }
 
         val data = call("GET", query, null, token)
@@ -309,7 +380,9 @@ object SocialBoostApi {
                     isLikes = isLikes,
                     rewardCoins = if (isLikes) likeReward else followReward,
                     url = o.optString("url", ""),
-                    postPk = o.optString("post_pk", "").ifBlank { null }
+                    postPk = o.optString("post_pk", "").ifBlank { null },
+                    platform = if (o.isNull("platform")) Platforms.DEFAULT
+                    else o.optString("platform", Platforms.DEFAULT).ifBlank { Platforms.DEFAULT }
                 )
             )
         }
@@ -449,7 +522,8 @@ object SocialBoostApi {
         username: String,
         url: String,
         productId: Int,
-        postPk: String? = null
+        postPk: String? = null,
+        platform: String = Platforms.DEFAULT
     ): JSONObject {
         val body = JSONObject().apply {
             put("sec_uid", secUid)
@@ -458,6 +532,9 @@ object SocialBoostApi {
             // failing with InvalidUsernameOrUrl.
             put("username", username)
             put("url", url)
+            // The server needs the network to resolve the target with the right
+            // provider. Omitting this silently resolves every order against TikTok.
+            put("platform", Platforms.normalize(platform))
             // requireString() on the server insists on a string here.
             put("product_id", productId.toString())
             if (!postPk.isNullOrBlank()) put("post_pk", postPk)
@@ -476,13 +553,16 @@ object SocialBoostApi {
         ttUsername: String,
         targetUsername: String,
         isLikes: Boolean = false,
-        actionCompleted: Boolean = true
+        actionCompleted: Boolean = true,
+        platform: String = Platforms.DEFAULT
     ): Int {
         val body = JSONObject().apply {
             put("order_id", orderId)
             if (!secUid.isNullOrBlank()) put("sec_uid", secUid)
             put("tt_username", ttUsername)
             put("tiktok_username", targetUsername)
+            // Scopes the viewer's account lookup to the signed-in network.
+            put("platform", Platforms.normalize(platform))
             // Deliberately NO `follow_incremented` / `likes_incremented` here.
             //
             // Sending them made the server take a shortcut that credited coins on the
@@ -508,13 +588,16 @@ object SocialBoostApi {
         orderId: Int,
         url: String,
         ttUsername: String,
-        secUid: String?
+        secUid: String?,
+        platform: String = Platforms.DEFAULT
     ) {
         if (url.isBlank()) return
         val body = JSONObject().apply {
             put("order_id", orderId)
             put("url", url)
             put("tt_username", ttUsername)
+            // Selects the post provider that can actually read this post's like count.
+            put("platform", Platforms.normalize(platform))
             if (!secUid.isNullOrBlank()) put("sec_uid", secUid)
         }
         call("POST", "/api/v6/posts/url", body, token)
@@ -565,12 +648,22 @@ object SocialBoostApi {
      *
      * The login routes sit behind HashMiddleware, so they need the `hash` header
      * (sha256 of HASH_VALUE) — the same constant the server was configured with.
+     *
+     * `platform` tells the server which network the handle belongs to. It matters:
+     * the same handle is a different person on TikTok and Instagram, and the server
+     * keys accounts by (platform, username). Omitting it means TikTok.
      */
-    fun login(loginId: String, username: String, deviceName: String = "android"): JSONObject {
+    fun login(
+        loginId: String,
+        username: String,
+        deviceName: String = "android",
+        platform: String = Platforms.DEFAULT
+    ): JSONObject {
         val body = JSONObject().apply {
             put("device_name", deviceName)
             put("id", loginId)
             put("username", username)
+            put("platform", Platforms.normalize(platform))
         }
         val headers = mapOf("hash" to sha256Hex(Constants.TTBOOST_HASH_VALUE))
         return call("POST", "/api/v6/login", body, null, headers)
@@ -586,12 +679,14 @@ object SocialBoostApi {
         loginId: String,
         username: String,
         deviceName: String = "android",
-        referral: String? = null
+        referral: String? = null,
+        platform: String = Platforms.DEFAULT
     ): JSONObject {
         val body = JSONObject().apply {
             put("device_name", deviceName)
             put("id", loginId)
             put("username", username)
+            put("platform", Platforms.normalize(platform))
             put("is_emulator", false)
             if (!referral.isNullOrBlank()) put("referral", referral)
         }
@@ -612,7 +707,15 @@ object SocialBoostApi {
         val image: String? = null,
         /** How much of the order has been delivered, and the target. */
         val currentProgress: Int = 0,
-        val maxProgress: Int = 0
+        val maxProgress: Int = 0,
+        /**
+         * Which network the boosted account belongs to.
+         *
+         * Needed to resolve the right profile picture: the server keys avatars by
+         * (platform, username), and the same handle is a different person on each
+         * network. Absent means TikTok.
+         */
+        val platform: String = Platforms.DEFAULT
     )
 
     /** One row in the coins ledger. */
@@ -649,7 +752,9 @@ object SocialBoostApi {
                     createdAt = o.optString("created_at", ""),
                     image = if (o.isNull("image")) null else o.optString("image").ifBlank { null },
                     currentProgress = o.optInt("current_progress", 0),
-                    maxProgress = o.optInt("max_progress", 0)
+                    maxProgress = o.optInt("max_progress", 0),
+                    platform = if (o.isNull("platform")) Platforms.DEFAULT
+                    else o.optString("platform", Platforms.DEFAULT).ifBlank { Platforms.DEFAULT }
                 )
             )
         }

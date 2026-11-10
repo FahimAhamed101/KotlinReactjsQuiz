@@ -22,8 +22,10 @@ import android.view.LayoutInflater
 import com.Fahim101.tomquiz.ui.HomeActivity
 import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.Constants
+import com.Fahim101.tomquiz.utils.Platforms
 import com.Fahim101.tomquiz.utils.SocialBoostApi
 import com.Fahim101.tomquiz.utils.TikTokHandle
+import com.google.android.material.button.MaterialButtonToggleGroup
 
 /**
  * Entry screen — authenticates against the SocialBoost API.
@@ -33,14 +35,20 @@ import com.Fahim101.tomquiz.utils.TikTokHandle
  *   1. **Type your handle** and press Get Started. The app derives a login id from
  *      it, calls `POST /v6/login`, and falls back to `POST /v6/register` when the
  *      server answers `UserNotRegistered`.
- *   2. **Let TikTok supply the handle** ("Already signed in to TikTok"). The phone
- *      is normally already logged in to TikTok, so instead of asking the user to
+ *   2. **Let the platform supply the handle** ("Already signed in to TikTok"). The
+ *      phone is normally already logged in to TikTok, so instead of asking the user to
  *      remember and retype their handle we open TikTok, let them copy their profile
  *      link, and read it back off the clipboard when they return — then sign in
  *      automatically with the handle we found.
  *
+ * The user picks **TikTok or Instagram** with the toggle above the input. That choice
+ * is part of their identity, not a preference: `@demo` on TikTok and `@demo` on
+ * Instagram are two different people with two different profile pictures, so the
+ * server keys every account by (platform, username) and the app has to know which
+ * network it is looking at before it can show the right face.
+ *
  * Whichever path runs, the outcome is the same: a bearer token plus the resolved
- * TikTok account are stored, and that token is what lets the Tasks screen earn coins.
+ * account are stored, and that token is what lets the Tasks screen earn coins.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -50,11 +58,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tiktokButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var tvStatus: TextView
+    private lateinit var platformToggle: MaterialButtonToggleGroup
 
     /**
-     * True between opening TikTok and coming back, so the clipboard read is wanted.
-     * Without it we would inspect the clipboard on every resume, including the one
-     * that fires right after a normal cold start.
+     * The network the entered handle belongs to.
+     *
+     * Read from the toggle rather than tracked separately, so there is exactly one
+     * source of truth for "which platform am I signing in to".
+     */
+    private val selectedPlatform: String
+        get() = when (platformToggle.checkedButtonId) {
+            R.id.btn_platform_instagram -> Platforms.INSTAGRAM
+            R.id.btn_platform_facebook -> Platforms.FACEBOOK
+            else -> Platforms.TIKTOK
+        }
+
+    /**
+     * True between opening the platform app and coming back, so the clipboard read
+     * is wanted. Without it we would inspect the clipboard on every resume, including
+     * the one that fires right after a normal cold start.
      */
     private var awaitingTiktokReturn = false
 
@@ -88,6 +110,25 @@ class MainActivity : AppCompatActivity() {
         tiktokButton = findViewById(R.id.button_tiktok)
         progress = findViewById(R.id.progress_login)
         tvStatus = findViewById(R.id.tv_login_status)
+        platformToggle = findViewById(R.id.platform_toggle)
+
+        // Restore the platform the user last signed in with, so switching back and
+        // forth does not silently reset it to TikTok.
+        val savedPlatform = prefs.getString(Constants.KEY_PLATFORM, null)
+        platformToggle.check(
+            if (Platforms.normalize(savedPlatform) == Platforms.INSTAGRAM) {
+                R.id.btn_platform_instagram
+            } else {
+                R.id.btn_platform_tiktok
+            }
+        )
+
+        // Switching platform changes the handle rules, the field hint and the whole
+        // "let the app supply it" path — so the label has to follow the toggle.
+        platformToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) onPlatformChanged()
+        }
+        onPlatformChanged()
 
         prefs.getString(Constants.KEY_TIKTOK_USERNAME, null)?.let {
             editUsername.setText(it)
@@ -95,6 +136,39 @@ class MainActivity : AppCompatActivity() {
 
         startButton.setOnClickListener { signIn() }
         tiktokButton.setOnClickListener { openTikTok() }
+    }
+
+    /**
+     * Re-label the screen for the platform the user picked.
+     *
+     * The field hint used to say "TikTok username", which became a lie the moment
+     * Instagram was selectable. The second button is also TikTok-specific — handing
+     * the identity check to Instagram works differently — so it is hidden for
+     * Instagram rather than left to do the wrong thing.
+     */
+    private fun onPlatformChanged() {
+        val platform = selectedPlatform
+        val label = Platforms.label(platform)
+
+        val hintRes = when (platform) {
+            Platforms.INSTAGRAM -> R.string.tt_username_hint_instagram
+            Platforms.FACEBOOK -> R.string.tt_username_hint_facebook
+            else -> R.string.tt_username_hint_tiktok
+        }
+        val hint = getString(hintRes)
+        editUsername.hint = hint
+        // The TextInputLayout owns the floating label above the box; setting only the
+        // EditText's hint leaves that label showing the previous platform's text.
+        findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.username_layout)
+            ?.hint = hint
+
+        // The "already signed in" shortcut works for every network — it opens that
+        // network's own app and reads the profile link off the clipboard — so it stays
+        // visible for all three. Only its wording follows the toggle; the old version
+        // hid it for Instagram and still said "TikTok" in its hint.
+        tiktokButton.text = getString(R.string.tt_already_signed_in, label)
+        findViewById<TextView>(R.id.tv_tiktok_hint)?.text =
+            getString(R.string.tt_already_hint, label)
     }
 
     // ------------------------------------------------------------------
@@ -111,7 +185,20 @@ class MainActivity : AppCompatActivity() {
     private fun openTikTok() {
         awaitingTiktokReturn = true
 
-        val launched = TIKTOK_PACKAGES.any { pkg ->
+        val platform = selectedPlatform
+        val packages = when (platform) {
+            Platforms.INSTAGRAM -> INSTAGRAM_PACKAGES
+            Platforms.FACEBOOK -> FACEBOOK_PACKAGES
+            else -> TIKTOK_PACKAGES
+        }
+        val website = when (platform) {
+            Platforms.INSTAGRAM -> "https://www.instagram.com/"
+            Platforms.FACEBOOK -> "https://www.facebook.com/"
+            else -> "https://www.tiktok.com/"
+        }
+        val appName = Platforms.label(platform)
+
+        val launched = packages.any { pkg ->
             val intent = packageManager.getLaunchIntentForPackage(pkg)
             if (intent == null) {
                 false
@@ -135,19 +222,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // TikTok is not installed — the browser can still show the site.
+        // The app is not installed — the browser can still show the site.
         try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/")))
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(website)))
             Toast.makeText(
                 this,
-                "TikTok app not found — opened the website. Copy your profile link and come back.",
+                "$appName app not found — opened the website. Copy your profile link and come back.",
                 Toast.LENGTH_LONG
             ).show()
         } catch (e: Exception) {
             awaitingTiktokReturn = false
             Toast.makeText(
                 this,
-                "Could not open TikTok. Please type your username instead.",
+                "Could not open $appName. Please type your username instead.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -187,7 +274,8 @@ class MainActivity : AppCompatActivity() {
             awaitingTiktokReturn = false
             Toast.makeText(
                 this,
-                "No TikTok profile link on the clipboard yet — copy it in TikTok, then tap the button again.",
+                "No ${Platforms.label(selectedPlatform)} profile link on the clipboard yet — " +
+                    "copy it in the app, then tap the button again.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -199,7 +287,12 @@ class MainActivity : AppCompatActivity() {
             val clipboard = getSystemService(ClipboardManager::class.java) ?: return null
             val clip = clipboard.primaryClip ?: return null
             if (clip.itemCount == 0) return null
-            TikTokHandle.extract(clip.getItemAt(0).coerceToText(this).toString())
+            val text = clip.getItemAt(0).coerceToText(this).toString()
+            when (selectedPlatform) {
+                Platforms.INSTAGRAM -> TikTokHandle.extractInstagram(text)
+                Platforms.FACEBOOK -> TikTokHandle.extractFacebook(text)
+                else -> TikTokHandle.extract(text)
+            }
         } catch (e: Exception) {
             Log.w("MainActivity", "clipboard read failed: ${e.message}")
             null
@@ -211,20 +304,52 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------------
 
     private fun signIn() {
-        val username = editUsername.text.toString().trim().removePrefix("@")
+        val platform = selectedPlatform
+        val raw = editUsername.text.toString().trim()
 
-        if (username.isEmpty()) {
-            Toast.makeText(this, "Please enter your TikTok username", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!TikTokHandle.isValid(username)) {
+        if (raw.isEmpty()) {
             Toast.makeText(
                 this,
-                "Usernames are 2-24 characters: letters, numbers, dots and underscores",
+                if (platform == Platforms.FACEBOOK) {
+                    "Please paste your Facebook page or profile link"
+                } else {
+                    "Please enter your ${Platforms.label(platform)} username"
+                },
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        // Normalise through the platform's own parser instead of just stripping "@".
+        // Facebook users paste a profile URL far more often than a slug, and a pasted
+        // URL that is only stripped of "@" is not a handle — it would be sent to the
+        // server verbatim and resolve to nobody.
+        val username = when (platform) {
+            Platforms.INSTAGRAM -> TikTokHandle.extractInstagram(raw)
+            Platforms.FACEBOOK -> TikTokHandle.extractFacebook(raw)
+            else -> TikTokHandle.extract(raw) ?: raw.removePrefix("@")
+        }
+
+        if (username == null || !TikTokHandle.isValid(username, platform)) {
+            Toast.makeText(
+                this,
+                when (platform) {
+                    Platforms.INSTAGRAM ->
+                        "Instagram usernames are up to 30 characters: letters, numbers, dots and underscores"
+                    Platforms.FACEBOOK ->
+                        "Paste a Facebook page or profile link — e.g. facebook.com/yourpage " +
+                            "or facebook.com/profile.php?id=1000..."
+                    else ->
+                        "Usernames are 2-24 characters: letters, numbers, dots and underscores"
+                },
                 Toast.LENGTH_LONG
             ).show()
             return
         }
+
+        // Show the handle that will actually be looked up. A pasted Facebook link
+        // otherwise leaves the raw URL in the field, which looks like it was ignored.
+        if (username != raw) editUsername.setText(username)
 
         // Straight to login/register — one server round-trip, exactly as before.
         //
@@ -235,7 +360,7 @@ class MainActivity : AppCompatActivity() {
         // and Home loads the real picture and counts on entry, so the preview is no longer
         // worth the latency — the profile still shows the right person, just immediately
         // after sign-in instead of before it.
-        completeSignIn(username)
+        completeSignIn(username, platform)
     }
 
     /**
@@ -248,6 +373,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showProfilePreview(profile: SocialBoostApi.ProfileInfo, fallbackUsername: String) {
         val handle = profile.username ?: fallbackUsername
+        // The profile carries the network it was resolved from; trusting it here
+        // rather than re-reading the toggle keeps the preview and the sign-in on
+        // the same platform even if the user flips the toggle while it loads.
+        val platform = Platforms.normalize(profile.platform)
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_profile_preview, null)
 
         val ivAvatar = view.findViewById<ImageView>(R.id.iv_preview_avatar)
@@ -274,7 +403,11 @@ class MainActivity : AppCompatActivity() {
             tvError.setText(R.string.tt_preview_no_key)
             tvError.visibility = View.VISIBLE
         }
-        Avatars.load(ivAvatar, Avatars.candidates(handle, profile.avatarUrl, profile.avatarLarger), handle)
+        Avatars.load(
+            ivAvatar,
+            Avatars.candidates(handle, platform, profile.avatarUrl, profile.avatarLarger),
+            handle
+        )
 
         val dialog = AlertDialog.Builder(this)
             .setView(view)
@@ -290,38 +423,55 @@ class MainActivity : AppCompatActivity() {
             // Store the resolved identity now, so it is right even if the next step fails.
             prefs.edit()
                 .putString(Constants.KEY_TIKTOK_USERNAME, handle)
-                .putString(Constants.KEY_PLATFORM, Constants.PLATFORM_DEFAULT)
+                .putString(Constants.KEY_PLATFORM, platform)
                 .putString(Constants.KEY_AVATAR_URL, profile.avatarUrl ?: profile.avatarLarger)
                 .putString(Constants.USER_NAME, profile.nickname ?: handle)
                 .apply()
-            completeSignIn(handle)
+            completeSignIn(handle, platform)
         }
 
         dialog.show()
     }
 
-    /** The login/register step, once the user has confirmed the profile is theirs. */
-    private fun completeSignIn(username: String) {
-        setLoading(true, "Connecting to SocialBoost…")
+    /**
+     * The login/register step.
+     *
+     * `platform` is passed in rather than read from the toggle here: the request already
+     * runs on a worker thread by the time it matters, so the user could flip the toggle
+     * mid-flight and the account created must be the one for the network whose handle
+     * they actually typed.
+     *
+     * The login id namespaces by platform too. It used to be just
+     * `username@ttboost.app`, which was fine while TikTok was the only network — but
+     * `@demo` on Instagram is a different person from `@demo` on TikTok, and both would
+     * derive the same id, so whichever signed in second landed inside the first one's
+     * account. TikTok keeps the original shape so every existing account still resolves.
+     */
+    private fun completeSignIn(username: String, platform: String) {
+        setLoading(true, "Connecting to SocialBoost...")
 
-        // A deterministic identifier so the same handle always maps to one account.
-        val loginId = "$username@ttboost.app"
+        val platformKey = Platforms.normalize(platform)
+        val loginId = if (platformKey == Platforms.TIKTOK) {
+            "$username@ttboost.app"
+        } else {
+            "$username@$platformKey.ttboost.app"
+        }
 
         Thread {
             try {
                 val data = try {
-                    SocialBoostApi.login(loginId, username)
+                    SocialBoostApi.login(loginId, username, platform = platformKey)
                 } catch (e: SocialBoostApi.ApiException) {
                     // Unknown user -> create it.
                     if (e.errorCode == "UserNotRegistered") {
-                        runOnUiThread { setLoading(true, "Creating your account…") }
-                        SocialBoostApi.register(loginId, username)
+                        runOnUiThread { setLoading(true, "Creating your account...") }
+                        SocialBoostApi.register(loginId, username, platform = platformKey)
                     } else {
                         throw e
                     }
                 }
 
-                persistSession(data, username)
+                persistSession(data, username, platformKey)
                 runOnUiThread { goHome() }
             } catch (e: Exception) {
                 Log.w("MainActivity", "Sign-in failed: ${e.message}")
@@ -337,8 +487,8 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    /** Store the token and the resolved TikTok account for later calls. */
-    private fun persistSession(data: org.json.JSONObject, fallbackUsername: String) {
+    /** Store the token and the resolved account for later calls. */
+    private fun persistSession(data: org.json.JSONObject, fallbackUsername: String, platform: String) {
         val token = data.optJSONObject("auth")?.optString("token").orEmpty()
         val tiktok = data.optJSONObject("tiktok_info")
 
@@ -356,6 +506,10 @@ class MainActivity : AppCompatActivity() {
             .putString(Constants.KEY_AUTH_TOKEN, token)
             .putString(Constants.KEY_LOGIN_ID, fallbackUsername)
             .putString(Constants.KEY_TIKTOK_USERNAME, field("uniqueId") ?: fallbackUsername)
+            // The signed-in network. Everything downstream — the avatar URL, the profile
+            // refresh, the order avatars — is keyed by (platform, username), so this must
+            // be stored or the app would fall back to TikTok and show the wrong person.
+            .putString(Constants.KEY_PLATFORM, Platforms.normalize(platform))
             .putString(Constants.KEY_SEC_UID, field("secUid"))
             .putString(Constants.KEY_AVATAR_URL, field("avatarLarger"))
             .putString(Constants.USER_NAME, field("nickname") ?: fallbackUsername)
@@ -407,6 +561,24 @@ class MainActivity : AppCompatActivity() {
             "com.ss.android.ugc.tiktok",
             "com.tiktok",
             "com.zhiliaoapp.musically.go",
+        )
+
+        /**
+         * Instagram's own app. Listed before "Lite" so the full app wins when both are
+         * installed, matching the order TikTok's list uses for its mainstream build.
+         */
+        private val INSTAGRAM_PACKAGES = listOf(
+            "com.instagram.android",
+            "com.instagram.lite",
+        )
+
+        /**
+         * Facebook ships a full client (`katana`) and the lightweight `lite` client,
+         * plus the Meta "app manager" that some devices install instead.
+         */
+        private val FACEBOOK_PACKAGES = listOf(
+            "com.facebook.katana",
+            "com.facebook.lite",
         )
     }
 }

@@ -44,7 +44,11 @@ class OrderHistoryAdapter(
 
         // Mirror URL first, then the order's own snapshot. The snapshot is a signed TikTok
         // CDN link and stops working after ~2 days, so it is only a fallback.
-        Avatars.load(holder.ivAvatar, Avatars.candidates(item.username, item.image), item.username)
+        Avatars.load(
+            holder.ivAvatar,
+            Avatars.candidates(item.username, item.platform, item.image),
+            item.username
+        )
 
         holder.tvStatus.text = item.status
         holder.tvStatus.setTextColor(

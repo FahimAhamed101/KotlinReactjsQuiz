@@ -1,6 +1,8 @@
 package com.Fahim101.tomquiz.utils
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -52,10 +54,14 @@ object Avatars {
     /**
      * Ordered candidates for one account: the server mirror first (it cannot expire),
      * then whatever CDN URL we were given.
+     *
+     * `platform` is required for the mirror URL because the server keys avatars by
+     * (platform, username) — the same handle is a different person on each network, and
+     * an unscoped mirror URL would serve the other platform's picture.
      */
-    fun candidates(username: String?, vararg fallbacks: String?): List<String> {
+    fun candidates(username: String?, platform: String = Platforms.DEFAULT, vararg fallbacks: String?): List<String> {
         val out = LinkedHashSet<String>()
-        Constants.avatarUrlFor(username)?.let { out.add(it) }
+        Constants.avatarUrlFor(username, platform)?.let { out.add(it) }
         for (url in fallbacks) {
             if (isPlaceholder(url)) continue
             out.add(absolute(url!!.trim()))
@@ -91,6 +97,31 @@ object Avatars {
      * already warmed the function, so the second attempt normally succeeds. Without this, a
      * slow first load fell straight through to the initials even though the server was fine.
      */
+    /**
+     * Walk ContextThemeWrapper / TintContextWrapper back to the owning Activity.
+     * Material widgets hand us a wrapper, so a plain `as? Activity` misses it.
+     */
+    private fun owningActivity(context: Context): Activity? {
+        var current: Context? = context
+        while (current is ContextWrapper) {
+            if (current is Activity) return current
+            current = current.baseContext
+        }
+        return null
+    }
+
+    /**
+     * `Glide.with(view)` binds the request to the enclosing Activity. Once that Activity
+     * is destroyed Glide throws `IllegalArgumentException: You cannot start a load for a
+     * destroyed activity` — which is exactly what happened when HomeActivity's loadTasks
+     * Handler callback ran after the user had already left the screen. Falling back to the
+     * lettered avatar keeps a late callback from taking the whole process down.
+     */
+    private fun canStartLoad(view: ImageView): Boolean {
+        val activity = owningActivity(view.context) ?: return true
+        return !activity.isDestroyed && !activity.isFinishing
+    }
+
     private fun loadAt(
         view: ImageView,
         urls: List<String>,
@@ -98,6 +129,10 @@ object Avatars {
         label: String?,
         attempt: Int
     ) {
+        if (!canStartLoad(view)) {
+            view.setImageDrawable(initials(view.context, label))
+            return
+        }
         if (index >= urls.size) {
             view.setImageDrawable(initials(view.context, label))
             return
@@ -118,8 +153,12 @@ object Avatars {
                 ): Boolean {
                     // Deferred: starting the next load here is what Glide forbids.
                     view.postDelayed({
-                        if (attempt == 0) loadAt(view, urls, index, label, 1)
-                        else loadAt(view, urls, index + 1, label, 0)
+                        // The Activity can be destroyed during the 500ms wait. Starting
+                        // another load then is the same crash as the initial one.
+                        if (canStartLoad(view)) {
+                            if (attempt == 0) loadAt(view, urls, index, label, 1)
+                            else loadAt(view, urls, index + 1, label, 0)
+                        }
                     }, 500)
                     return true
                 }

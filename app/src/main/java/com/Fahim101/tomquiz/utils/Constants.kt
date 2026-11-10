@@ -91,7 +91,7 @@ object Constants {
     const val KEY_PLATFORM = "ttboost_platform"
 
     /** Platform used when nothing has been stored yet — every pre-platform row. */
-    const val PLATFORM_DEFAULT = "tiktok"
+    const val PLATFORM_DEFAULT = Platforms.DEFAULT
 
     /** `tiktok_info.avatarLarger` captured at login — the user's profile picture. */
     const val KEY_AVATAR_URL = "ttboost_avatar_url"
@@ -99,9 +99,9 @@ object Constants {
     const val KEY_LOGIN_ID = "ttboost_login_id"
 
     /**
-     * The server's stable avatar URL for a handle: `/api/v6/avatar/<username>`.
+     * The server's stable avatar URL for a handle: `/api/v6/avatar/<platform>/<username>`.
      *
-     * Preferred over the raw TikTok CDN URL because that URL is time-signed and starts
+     * Preferred over the raw CDN URL because that URL is time-signed and starts
      * returning 403 after about two days — which is what made the profile picture vanish
      * on its own. The server serves the mirrored bytes instead, so this URL keeps working.
      *
@@ -114,8 +114,31 @@ object Constants {
         // The route is /api/v6/avatar/<platform>/<username>. The old shape omitted the
         // platform segment, so this URL 404'd and every avatar silently fell back to the
         // expiring TikTok CDN link (which then 403'd ~2 days later).
-        return "${TTBOOST_API_URL.trimEnd('/')}/api/v6/avatar/$platform/" +
+        return "${TTBOOST_API_URL.trimEnd('/')}/api/v6/avatar/${Platforms.normalize(platform)}/" +
             java.net.URLEncoder.encode(handle, "UTF-8")
+    }
+
+    /**
+     * Canonical public profile link for a handle on the given network.
+     *
+     * Followers orders used to hardcode `https://www.tiktok.com/@<handle>`, so an
+     * Instagram or Facebook boost order carried a TikTok link as its target. Facebook
+     * users often have no vanity slug at all, in which case the numeric id must be
+     * rendered as `profile.php?id=N` — mirrors `profileUrl()` in the server's
+     * `lib/services/platforms.js`.
+     */
+    fun profileUrlFor(username: String?, platform: String = PLATFORM_DEFAULT): String {
+        val handle = username?.trim()?.removePrefix("@")?.lowercase().orEmpty()
+        return when (Platforms.normalize(platform)) {
+            Platforms.INSTAGRAM -> "https://www.instagram.com/$handle/"
+            Platforms.FACEBOOK ->
+                if (handle.matches(Regex("""\d{1,25}"""))) {
+                    "https://www.facebook.com/profile.php?id=$handle"
+                } else {
+                    "https://www.facebook.com/$handle"
+                }
+            else -> "https://www.tiktok.com/@$handle"
+        }
     }
 
     /**

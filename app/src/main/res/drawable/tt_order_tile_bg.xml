@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Order-type tile background. Driven purely by `View.isSelected`, so the grid only has
+  to flip selected state on the tiles it touches and the framework repaints the border.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:drawable="@drawable/tt_tile_selected" />
+    <item android:drawable="@drawable/tt_tile_normal" />
+</selector>
