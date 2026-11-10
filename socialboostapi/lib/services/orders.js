@@ -8,8 +8,9 @@ import { OrderStatus, OrderType, OrderPriority, ProductCategory, CoinHistoryType
 import { getFloat, getInt } from '../settings';
 import { err, ApiException } from '../errors';
 import { reactivationIneligibilityReason } from '../resources';
-import { getPostInfo, getProfileInfo } from './tiktok';
-import { resolveVideoUrl, canonicalVideoUrl } from './videoUrl';
+import { getProfileInfo as getPlatformProfile } from './profiles';
+import { getPostInfo as getPlatformPost, resolvePost, canonicalPostUrl, postLinkHint } from './posts';
+import { normalizePlatform, profileUrl, PLATFORM_LABELS } from './platforms';
 import { validateOfferProduct } from './offers';
 import { upsertAccountFromProfile } from './coinsCheck';
 
@@ -28,6 +29,10 @@ export async function createOrderV4({ user, body }) {
   const isOfferProduct = product.category === ProductCategory.Offer;
   const isFree = product.coinsPrice !== null && product.coinsPrice !== undefined;
   const type = isFree ? OrderType.Free : OrderType.Premium;
+
+  // Which network the target belongs to. Absent/unknown means TikTok, so clients built
+  // before the field existed keep resolving exactly as they always did.
+  const platform = normalizePlatform(body.platform);
 
   // --- Checks that produce a refusal, ordered so the message matches the real blocker ---
   //
@@ -58,18 +63,23 @@ export async function createOrderV4({ user, body }) {
   // profile, and every likes order died with "Could not read that video".
   let video = null;
   if (isLikes) {
-    video = await resolveVideoUrl(body.url);
+    video = await resolvePost(platform, body.url);
     if (!video) {
       throw err.invalidUsernameOrUrl(
-        'Paste the link to a single TikTok video (…/@username/video/1234567890). ' +
-          'A profile link cannot be boosted for likes.',
+        `Paste a link to a single ${PLATFORM_LABELS[platform]} post. ` +
+          `${postLinkHint(platform)} A profile link cannot be boosted for likes.`,
       );
     }
   }
 
-  // Resolve the target account. Prefer the handle from the video link when we have one.
-  const account = await resolveTargetAccount(body, { preferUsername: video?.username ?? null });
-  if (!account) throw err.invalidUsernameOrUrl('Could not resolve the TikTok account.');
+  // Resolve the target account. Prefer the handle from the post link when we have one.
+  const account = await resolveTargetAccount(body, {
+    preferUsername: video?.username ?? null,
+    platform,
+  });
+  if (!account) {
+    throw err.invalidUsernameOrUrl(`Could not resolve the ${PLATFORM_LABELS[platform]} account.`);
+  }
 
   // --- Fetch the target's live counters to anchor start_count ---
   let startCount = 0;
@@ -78,22 +88,22 @@ export async function createOrderV4({ user, body }) {
   let image = account.avatarLarger ?? '';
 
   if (isLikes) {
-    canonicalUrl = canonicalVideoUrl(video);
+    canonicalUrl = canonicalPostUrl(platform, video, body.url);
     postPk = video.postId;
 
-    const post = await getPostInfo(canonicalUrl);
+    const post = await getPlatformPost(platform, canonicalUrl);
     if (!post) {
       throw err.invalidUsernameOrUrl(
-        'Could not read that video. Check the link opens a single public TikTok video.',
+        `Could not read that post. ${postLinkHint(platform)}`,
       );
     }
     startCount = post.likeCount;
     if (post.cover) image = post.cover;
   } else {
-    const profile = await getProfileInfo(account.username, account.secUid);
+    const profile = await getPlatformProfile(platform, account.username, account.secUid);
     if (!profile) throw err.invalidUsernameOrUrl('Could not read that profile.');
     startCount = profile.followerCount;
-    canonicalUrl = `https://www.tiktok.com/@${profile.username}`;
+    canonicalUrl = profileUrl(platform, profile.username ?? account.username) ?? body.url;
     if (profile.avatarLarger) image = profile.avatarLarger;
   }
 
@@ -113,6 +123,7 @@ export async function createOrderV4({ user, body }) {
           accountId: account.id,
           image,
           username: account.username,
+          platform,
           url: canonicalUrl,
           postPk,
           startCount: BigInt(startCount),
@@ -165,6 +176,7 @@ export async function createOrderV4({ user, body }) {
       accountId: account.id,
       image,
       username: account.username,
+      platform,
       url: canonicalUrl,
       postPk,
       startCount: BigInt(startCount),
@@ -230,33 +242,37 @@ export async function checkOrdersCount(userId) {
 }
 
 /** Resolve the target account for an order from sec_uid or username. */
-async function resolveTargetAccount(body, { preferUsername = null } = {}) {
+async function resolveTargetAccount(body, { preferUsername = null, platform = 'tiktok' } = {}) {
   const secUid = body.sec_uid || null;
   const username = body.username ? String(body.username).toLowerCase() : null;
+  // The same handle is a different person on each network, so every row lookup has to
+  // carry the platform. Without it a Facebook page could resolve to a TikTok account
+  // with the same name and the order would be anchored to the wrong profile.
+  const scoped = (extra) => ({ platform, ...extra });
 
   // A likes order names its target in the video link. That handle must win over the
   // viewer's `sec_uid` — otherwise boosting someone else's video would resolve to the
   // viewer's own account and anchor the order to the wrong profile.
   if (preferUsername) {
     const handle = String(preferUsername).toLowerCase();
-    const known = await db.account.findOne({ where: { username: handle } });
+    const known = await db.account.findOne({ where: scoped({ username: handle }) });
     if (known) return known;
 
-    const profile = await getProfileInfo(handle, null);
+    const profile = await getPlatformProfile(platform, handle, null);
     if (!profile) return null;
     return upsertAccountFromProfile(profile);
   }
 
   if (secUid) {
-    const found = await db.account.findOne({ where: { secUid } });
+    const found = await db.account.findOne({ where: scoped({ secUid }) });
     if (found) return found;
   }
   if (username) {
-    const found = await db.account.findOne({ where: { username } });
+    const found = await db.account.findOne({ where: scoped({ username }) });
     if (found) return found;
   }
 
-  const profile = await getProfileInfo(username, secUid);
+  const profile = await getPlatformProfile(platform, username, secUid);
   if (!profile) return null;
   return upsertAccountFromProfile(profile);
 }
@@ -407,8 +423,12 @@ export async function reactivateOrder(user, orderId) {
  * `available` flag.
  */
 async function getReactivationAvailability(order) {
+  // The order row may predate the platform column; its Account row is the more
+  // reliable source, and an absent value still means TikTok.
+  const platform = normalizePlatform(order.account?.platform ?? order.platform);
+
   if (order.isLikes) {
-    const post = await getPostInfo(order.url);
+    const post = await getPlatformPost(platform, order.url);
 
     return {
       available: post !== null,
@@ -416,7 +436,11 @@ async function getReactivationAvailability(order) {
     };
   }
 
-  const profile = await getProfileInfo(order.username, order.account?.secUid ?? null);
+  const profile = await getPlatformProfile(
+    platform,
+    order.username,
+    order.account?.secUid ?? null,
+  );
 
   const available = !!profile && !profile.secret && !profile.privateAccount;
   const username = profile?.username ?? order.username;
@@ -425,7 +449,7 @@ async function getReactivationAvailability(order) {
     available,
     startCount: profile?.followerCount ?? Number(order.startCount ?? 0),
     username,
-    url: `https://www.tiktok.com/@${username}`,
+    url: profileUrl(platform, username),
   };
 }
 

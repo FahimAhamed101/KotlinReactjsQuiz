@@ -11,6 +11,7 @@
 import { currentUser, ensureUserIsActive } from './auth';
 import { verifyHash, verifySignature } from './signature';
 import { err } from './errors';
+import { normalizePlatform } from './services/platforms';
 import db from './db';
 
 /**
@@ -33,7 +34,7 @@ export async function guard(request, body = {}, { signature = true, hash = false
 }
 
 /**
- * EnsureAccountIsActive — the referenced TikTok account must not be banned.
+ * EnsureAccountIsActive — the referenced account must not be banned.
  * Also lowercases `username` in place, exactly as the Laravel middleware does.
  */
 export async function ensureAccountIsActive(request, body = {}) {
@@ -42,12 +43,16 @@ export async function ensureAccountIsActive(request, body = {}) {
 
   if (username) body.username = String(username).toLowerCase();
 
+  // Which network the account belongs to. Absent means TikTok, which is every
+  // account row written before platforms existed.
+  const platform = normalizePlatform(body?.platform || request.headers.get('x-platform'));
+
   let account = null;
   if (secUid) {
-    account = await db.account.findOne({ where: { secUid } });
+    account = await db.account.findOne({ where: { secUid, platform } });
   }
   if (!account && body.username) {
-    account = await db.account.findOne({ where: { username: body.username } });
+    account = await db.account.findOne({ where: { username: body.username, platform } });
   }
 
   if (account?.isBanned) {

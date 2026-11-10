@@ -75,6 +75,14 @@ export function accountResourceV2(a) {
     verified: a.verified,
     followingCount: a.following,
     followerCount: a.follower,
+    // Null when the network has no total-likes figure. The client renders "—" for null,
+    // so an unknown figure is never shown as a confident zero.
+    likeCount: a.heartCount ?? null,
+    // Which network this account belongs to. The block is still called `tiktok_info`
+    // for backwards compatibility, but its contents are platform-agnostic — so the
+    // client needs to be told which platform it is actually looking at. Absent means
+    // TikTok, which is every row written before platforms existed.
+    platform: a.platform || 'tiktok',
   };
 }
 
@@ -97,6 +105,10 @@ export function orderResource(o, { v4 = false } = {}) {
     // account's mirrored picture when we have one, and keep the snapshot as the fallback
     // for orders whose account row is gone.
     image: (o.account && avatarUrlFor(o.account)) || o.image,
+    // Which network the boosted account belongs to. The client keys the avatar
+    // lookup by (platform, username), and the same handle is a different person on
+    // each network — so an order row without this would render the wrong picture.
+    platform: (o.account && o.account.platform) || o.platform || 'tiktok',
     url: (o.url || '').toLowerCase(),
     type: o.type,
     username: o.username,

@@ -30,7 +30,7 @@
 import { handle } from '@/lib/envelope';
 import { verifySignature } from '@/lib/signature';
 import { accountResourceV2 } from '@/lib/resources';
-import { getProfileInfo } from '@/lib/services/tiktok';
+import { getProfileInfo, hasLiveProvider } from '@/lib/services/profiles';
 import { upsertAccountFromProfile } from '@/lib/services/coinsCheck';
 import { normalizePlatform, Platform } from '@/lib/services/platforms';
 import { err } from '@/lib/errors';
@@ -55,23 +55,29 @@ export const GET = handle(async (request, { params }) => {
   const username = raw.replace(/^@/, '').toLowerCase();
   if (!username) throw err.missingArgument('A username is required.');
 
-  // Only TikTok has a provider wired up. Saying so beats silently resolving an Instagram
-  // handle against TikTok and handing back someone else's profile.
-  if (platform !== Platform.TikTok) {
+  // A known row is free, and it is the row sign-in would reuse anyway.
+  // Matched on platform AND username: the same handle is a different person on each
+  // network, so a handle-only match would return the other platform's picture.
+  const known = await db.account.findOne({ where: { platform, username } });
+  if (known) return { tiktok_info: accountResourceV2(known), source: 'cached', platform };
+
+  // No provider for this platform yet. Saying so beats silently resolving an
+  // Instagram handle against TikTok and handing back someone else's profile.
+  if (!hasLiveProvider(platform)) {
     throw err.apiDisabled(
-      `${platform} lookup is not configured yet — add that platform's API host to .env.`,
+      platform === Platform.Instagram
+        ? 'Instagram lookup is not configured yet — set INSTAGRAM_RAPID_HOST and INSTAGRAM_RAPID_KEY in .env.'
+        : `${platform} lookup is not configured yet — add that platform's API host to .env.`,
     );
   }
 
-  // A known row is free, and it is the row sign-in would reuse anyway.
-  const known = await db.account.findOne({ where: { platform, username } });
-  if (known) return { tiktok_info: accountResourceV2(known), source: 'cached' };
-
-  const profile = await getProfileInfo(username, null);
+  const profile = await getProfileInfo(platform, username, null);
   if (!profile) {
-    throw err.userNotFound(`Could not find @${username} on TikTok. Check the spelling.`);
+    throw err.userNotFound(
+      `Could not find @${username} on ${platform}. Check the spelling.`,
+    );
   }
 
   const account = await upsertAccountFromProfile(profile);
-  return { tiktok_info: accountResourceV2(account), source: 'provider' };
+  return { tiktok_info: accountResourceV2(account), source: 'provider', platform };
 });

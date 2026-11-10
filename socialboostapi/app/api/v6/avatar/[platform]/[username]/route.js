@@ -19,7 +19,7 @@
 // the whole avatar as broken; falling through to the upstream URL (or a 404 the client
 // renders as initials) is always the better outcome.
 
-import { getMirroredAvatar } from '@/lib/services/avatar';
+import { getMirroredAvatar, mirrorAvatar } from '@/lib/services/avatar';
 import { normalizePlatform } from '@/lib/services/platforms';
 import db from '@/lib/db';
 
@@ -52,6 +52,12 @@ export async function GET(_request, { params }) {
     const account = await db.account.findOne({ where: { platform, username } });
     const upstream = account?.avatarLarger;
     if (upstream && /^https?:\/\//i.test(upstream) && !upstream.includes('picsum.photos')) {
+      // Fetch the bytes in the background so the NEXT request is served from the
+      // mirror. Without this the mirror collection was only ever filled by a manual
+      // repair script, so every request redirected at a CDN URL that expires.
+      // Not awaited: the redirect must go out immediately, and a failed download
+      // just means the next request tries again.
+      mirrorAvatar(platform, username, upstream).catch(() => {});
       return Response.redirect(upstream, 302);
     }
 

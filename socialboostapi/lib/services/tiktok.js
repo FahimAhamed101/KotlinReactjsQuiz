@@ -79,6 +79,9 @@ export async function getProfileInfo(username, secUid = null) {
     region: user.region ?? null,
     followingCount: stats?.followingCount ?? 0,
     followerCount: stats?.followerCount ?? 0,
+    // Total likes received. The live payload calls it `heartCount`, older scraper builds
+    // call it `heart`, so accept either; absent means null ("unknown"), not 0.
+    likeCount: stats?.heartCount ?? stats?.heart ?? null,
   };
 }
 

@@ -22,11 +22,35 @@
 import db from '../db';
 import { getInt } from '../settings';
 import { CoinHistoryType, OrderStatus, OrderCancelCode } from '../constants';
-import { getPostInfo, getProfileInfo } from './tiktok';
+import { getPostInfo as getPlatformPost } from './posts';
+import { normalizePlatform, PLATFORM_LABELS } from './platforms';
+import { getProfileInfo as getPlatformProfile } from './profiles';
 import { err } from '../errors';
 import { completeOrder, promoteNextQueuedOrder } from './orderLifecycle';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The provider profile for an Account row, on the platform that row belongs to.
+ *
+ * Every counter check below compares a *live* number to a stored anchor, and the
+ * account being measured may be a TikTok or an Instagram one. Importing `tiktok.js`
+ * directly (as this file used to) meant an Instagram account was queried against the
+ * TikTok scraper: the call returned null, the check bailed out, and every Instagram
+ * task silently refused to pay. The platform lives on the account row, so that is
+ * what selects the provider.
+ *
+ * `secUid` is only meaningful to the TikTok provider (Instagram keys on the handle),
+ * so passing it through is harmless for Instagram.
+ */
+function profileFor(account) {
+  if (!account) return Promise.resolve(null);
+  return getPlatformProfile(
+    account.platform || 'tiktok',
+    account.username,
+    account.secUid,
+  );
+}
 
 /**
  * @param {object} p
@@ -39,7 +63,11 @@ export async function handleCheck({ userId, body }) {
   const orderId = Number(body.order_id);
 
   const account = await resolveAccount(body);
-  if (!account) throw err.userNotFound('TikTok account not found.');
+  // Named after the network the task was actually placed on — a hard-coded "TikTok" in
+  // this message told an Instagram or Facebook user to go looking on the wrong app.
+  if (!account) {
+    throw err.userNotFound(`${PLATFORM_LABELS[normalizePlatform(body.platform)]} account not found.`);
+  }
 
   const order = await db.order.findOne({ where: { id: orderId } });
   if (!order) throw err.unknown('Order not found.');
@@ -126,7 +154,13 @@ async function verifyLike({ order, account, body }) {
   // Laravel fetches the post once, up front, and the checks below all read from
   // that same response. Fetching per-branch used to let a credit land on a video
   // that had already been deleted.
-  const post = await getPostInfo(order.url);
+  // A like is verified against the target post's live count, on the network the
+  // order belongs to. `account` is the resolved viewer row, whose platform is the
+  // most reliable source when an older order row has no platform column.
+  const platform = normalizePlatform(
+    order.account?.platform ?? account?.platform ?? order.platform,
+  );
+  const post = await getPlatformPost(platform, order.url);
 
   // --- v2 protocol: compare the live like count to the stored snapshot ---
   if (!post) {
@@ -188,8 +222,8 @@ async function verifyFollow({ order, account, body }) {
   });
   const previous = anchor?.followingCount ?? 0;
 
-  // Live count for the viewer account.
-  const profile = await getProfileInfo(account.username, account.secUid);
+  // Live count for the viewer account, on the viewer's own platform.
+  const profile = await profileFor(account);
 
   // A provider outage is NOT the same as "the user did not follow".
   //
@@ -203,19 +237,32 @@ async function verifyFollow({ order, account, body }) {
 
   const current = profile.followingCount;
 
+  const orderPlatform = normalizePlatform(order.platform ?? account.platform);
+
   if (previous >= current) {
     // The order owner may have deleted or privatised their account. Laravel only
     // cancels when a provider *successfully reported* the profile as unavailable
     // or secret — a total outage must not cancel anything, because it says nothing
     // about the account. This port's provider returns null for both cases, so the
     // safe equivalent is: cancel only on a positive "this account is private".
-    const ownerProfile = await getProfileInfo(order.username);
-    if (ownerProfile && ownerProfile.secret) {
+    //
+    // The target is resolved through its own Account row, not by handle alone: the
+    // order owner may be on a different network than the viewer, and a handle-only
+    // lookup would ask the wrong provider (and could match a different person).
+    // The row is then re-read by id anyway, so the fallback only needs to be
+    // platform-scoped to avoid matching the owner's namesake on another network.
+    const ownerAccount = order.accountId
+      ? await db.account.findOne({ where: { id: order.accountId } })
+      : await db.account.findOne({
+          where: { username: String(order.username).toLowerCase(), platform: orderPlatform },
+        });
+    const ownerProfile = await profileFor(ownerAccount);
+    if (ownerProfile && (ownerProfile.secret || ownerProfile.privateAccount)) {
       return {
         credited: false,
         unavailable: true,
         code: OrderCancelCode.UnavailableAccount,
-        message: 'TikTok account is unavailable',
+        message: `${PLATFORM_LABELS[orderPlatform]} account is unavailable`,
       };
     }
 
@@ -239,8 +286,12 @@ async function verifyFollow({ order, account, body }) {
     // following count merely happened to be non-zero look like it had just gained
     // a follow, handing out free coins to anyone who called this endpoint.
     await db.followCount.upsert({
-      where: { username: account.username },
+      // Scoped by platform: a TikTok anchor and an Instagram anchor for the same handle
+      // are two different rows, and collapsing them would compare the viewer's TikTok
+      // following count against an Instagram baseline.
+      where: { username: account.username, platform: normalizePlatform(account.platform) },
       create: {
+        platform: normalizePlatform(account.platform),
         username: account.username,
         accountId: account.id,
         followingCount: current,
@@ -356,7 +407,7 @@ export async function syncCycleFollowingCount(account, profileInfo = null) {
   if (!latestCycle || account.coinDeductionCycleId === latestCycle.id) return;
 
   const profile =
-    profileInfo ?? (await getProfileInfo(account.username, account.secUid));
+    profileInfo ?? (await profileFor(account));
   if (!profile || profile.followingCount === undefined || profile.followingCount === null) {
     return;
   }
@@ -416,21 +467,40 @@ export async function refreshAccountProfile(account, profileInfo) {
 function accountMatch(modelName, account) {
   const usernameField = modelName === 'LikesCount' ? 'ttUsername' : 'username';
 
+  // The legacy branch is scoped by platform wherever the model records one. Rows written
+  // before `platform` existed have no value, and `{ platform: { not: <p> } }` would skip
+  // them — so the platform clause is only added when the field is actually part of the
+  // model, and a missing value on the row is tolerated by matching on username alone.
+  const legacy = { accountId: null, [usernameField]: account.username };
+  if (account.platform && SUPPORTS_PLATFORM.has(modelName)) {
+    legacy.platform = normalizePlatform(account.platform);
+  }
+
   return {
-    OR: [
-      { accountId: account.id },
-      { accountId: null, [usernameField]: account.username },
-    ],
+    OR: [{ accountId: account.id }, legacy],
   };
 }
 
-/** Resolve (or lazily create) the caller's linked TikTok account row. */
+/** Models that carry a `platform` field — see lib/models/Account.js. */
+const SUPPORTS_PLATFORM = new Set(['FollowCount', 'LikesCount']);
+
+/**
+ * Resolve (or lazily create) the caller's linked account row.
+ *
+ * `body.platform` scopes every lookup when the client sends it. Without it the
+ * searches are handle-only, which is ambiguous the moment a second network exists:
+ * `@demo` is a different person on TikTok and Instagram, so a handle-only match can
+ * hand the checker the other platform's row — and then the wrong provider is queried
+ * for the live count and the task never verifies.
+ */
 export async function resolveAccount(body) {
   const username = body.tt_username || body.username || body.profile_username || null;
   const secUid = body.sec_uid || null;
+  const platform = body.platform ? String(body.platform).toLowerCase() : null;
+  const scoped = (extra) => (platform ? { platform, ...extra } : extra);
 
   if (secUid) {
-    const bySec = await db.account.findOne({ where: { secUid } });
+    const bySec = await db.account.findOne({ where: scoped({ secUid }) });
     if (bySec) return bySec;
   }
   if (username) {
@@ -440,11 +510,11 @@ export async function resolveAccount(body) {
     // rows that already carry a sec_uid; a bare username with no sec_uid is
     // treated as unresolved and re-fetched from the provider.
     const byName = await db.account.findOne({
-      where: { username: lower, secUid: { not: null } },
+      where: scoped({ username: lower, secUid: { not: null } }),
     });
     if (byName) return byName;
 
-    const profile = await getProfileInfo(lower, secUid);
+    const profile = await getPlatformProfile(platform || 'tiktok', lower, secUid);
     if (!profile) return null;
     return upsertAccountFromProfile(profile);
   }
@@ -467,7 +537,17 @@ export async function resolveAccount(body) {
  */
 export async function upsertAccountFromProfile(profile) {
   const username = profile.username.toLowerCase();
+
+  // Which network this row belongs to.
+  //
+  // The profile carries it because Instagram and TikTok have different providers
+  // (see `lib/services/profiles.js`), and the same handle can exist on both as two
+  // different people. Without this the row would default to TikTok and the app
+  // would serve the TikTok picture for an Instagram account.
+  const platform = profile.platform || 'tiktok';
+
   const data = {
+    platform,
     username,
     secUid: profile.secUid,
     tiktokId: profile.tiktokId,
@@ -482,9 +562,20 @@ export async function upsertAccountFromProfile(profile) {
     region: profile.region,
     following: profile.followingCount ?? 0,
     follower: profile.followerCount ?? 0,
+    // Total likes the account has received. `null` — not 0 — when the network does not
+    // expose it, because the client renders "—" for null and a confident 0 would be a
+    // lie (Instagram and Facebook have no such figure; see lib/services/instagram.js).
+    //
+    // This key was missing from the persisted set, so the providers' `likeCount` never
+    // reached the row: `accountResourceV2` read `a.heartCount ?? null`, always got null,
+    // and every profile rendered "—" even when the provider had supplied a number.
+    heartCount: profile.likeCount ?? null,
   };
 
-  const existing = await db.account.findOne({ where: { username } });
+  // Match on platform AND username. Matching the handle alone would find the
+  // TikTok row for an Instagram account — the handle is only unique per platform.
+  const where = { platform, username };
+  const existing = await db.account.findOne({ where });
 
   if (existing && profile.isStub) {
     // Fill the gaps only. `following`/`follower` are deliberately excluded: the stub
@@ -492,13 +583,15 @@ export async function upsertAccountFromProfile(profile) {
     // anchor to a number that has nothing to do with the real account.
     const fill = {};
     for (const [key, value] of Object.entries(data)) {
-      if (key === 'username' || key === 'following' || key === 'follower') continue;
+      if (key === 'username' || key === 'platform' || key === 'following' || key === 'follower' || key === 'heartCount') continue;
       const current = existing[key];
       const empty = current === null || current === undefined || current === '';
       if (empty && value !== null && value !== undefined && value !== '') fill[key] = value;
     }
     if (Object.keys(fill).length === 0) return existing;
-    return db.account.upsert({ where: { username }, create: data, update: fill });
+    const saved = await db.account.upsert({ where, create: data, update: fill });
+    mirrorInBackground(platform, username, existing.avatarLarger || data.avatarLarger, existing.avatarMirrored);
+    return saved;
   }
 
   if (existing && !data.avatarLarger && existing.avatarLarger) {
@@ -507,11 +600,48 @@ export async function upsertAccountFromProfile(profile) {
     delete data.avatarLarger;
   }
 
-  return db.account.upsert({
-    where: { username },
+  const saved = await db.account.upsert({
+    where,
     create: data,
     update: data,
   });
+
+  // The account now holds the provider's picture URL — but every one of those CDNs
+  // signs its links and they expire (TikTok in ~2 days, Instagram sooner). Nothing
+  // used to populate the mirror collection, so `/api/v6/avatar/<platform>/<username>`
+  // always fell through to a 302 at an expiring URL and the picture eventually broke.
+  // Store the bytes now, while the URL is fresh, so the client has one stable link
+  // that also works on a deployment with no scraping key.
+  mirrorInBackground(
+    platform,
+    username,
+    saved?.avatarLarger ?? data.avatarLarger,
+    saved?.avatarMirrored ?? existing?.avatarMirrored,
+  );
+
+  return saved;
+}
+
+/**
+ * Kick off an avatar download without blocking the caller.
+ *
+ * Deliberately not awaited: `upsertAccountFromProfile` sits on the login and lookup
+ * hot path, and a CDN round-trip there would add hundreds of milliseconds to a
+ * request the user is staring at. A failed mirror costs nothing — the upstream URL
+ * is still stored and still works until it expires.
+ */
+function mirrorInBackground(platform, username, url, alreadyMirrored) {
+  if (alreadyMirrored) return; // stable bytes already stored; do not re-download
+  if (!url || typeof url !== 'string') return;
+  if (!/^https?:\/\//i.test(url)) return;
+  // The offline stub's placeholder is not a real picture and must never be baked in.
+  if (url.includes('picsum.photos')) return;
+
+  import('./avatar')
+    .then(({ mirrorAvatar }) => mirrorAvatar(platform, username, url))
+    .catch(() => {
+      /* cosmetic only — never let a mirror failure surface as a request error */
+    });
 }
 
 /**

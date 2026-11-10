@@ -12,7 +12,9 @@ import { handle, success } from '@/lib/envelope';
 import { guard } from '@/lib/guard';
 import { readJson, requireInt, requireString, tiktokUsername } from '@/lib/validate';
 import { err } from '@/lib/errors';
-import { getPostInfo, hasLiveProvider, rapidGet } from '@/lib/services/tiktok';
+import { hasLiveProvider, rapidGet } from '@/lib/services/tiktok';
+import { getPostInfo as getPlatformPost } from '@/lib/services/posts';
+import { normalizePlatform } from '@/lib/services/platforms';
 import { resolveAccount } from '@/lib/services/coinsCheck';
 import { LikesCount } from '@/lib/models';
 import { nextId } from '@/lib/models';
@@ -50,15 +52,22 @@ export const POST = handle(async (request) => {
   const secUid = body.sec_uid || null;
   const url = requireString(body, 'url', { max: 500 });
 
-  const info = await getPostInfo(url);
+  // `body.platform` is the viewer's network. The like baseline must be fetched from
+  // that network's provider, otherwise an Instagram post is read by the TikTok scraper
+  // and stored as a zero baseline that can never be exceeded.
+  const platform = normalizePlatform(body.platform);
+  const info = await getPlatformPost(platform, url);
   const lastCount = info?.likeCount ?? 0;
 
-  const account = await resolveAccount({ tt_username: ttUsername, sec_uid: secUid });
+  // Same platform, for the same reason: the viewer's Account row has to be the one that
+  // belongs to this network, or the baseline is attributed to a different person.
+  const account = await resolveAccount({ tt_username: ttUsername, sec_uid: secUid, platform });
 
   const id = await nextId('like_counts');
   const row = await LikesCount.create({
     id,
     orderId,
+    platform,
     url,
     lastCount,
     ttUsername,

@@ -53,3 +53,16 @@ _apkwork/
 ui_dump.xml
 .kotlin/
 PURCHASE_FIX_REPORT.md
+
+# ---------------------------------------------------------------------------
+# Reference captures and one-off scratch.
+#
+# `_refapp/` holds the screenshots + uiautomator dumps taken from the Fantik
+# reference app and from our own build while comparing the two, and `_tools/`
+# holds throwaway python used for the disk-cleanup survey. Neither is source.
+# The `tmp-*-probe.mjs` scripts are single-use probes that print a value and
+# exit; they would otherwise be staged alongside the real test suite.
+# ---------------------------------------------------------------------------
+_refapp/
+_tools/
+socialboostapi/scripts/tmp-*.mjs

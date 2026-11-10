@@ -16,6 +16,7 @@ import { guard } from '@/lib/guard';
 import { userResource, accountResourceV2 } from '@/lib/resources';
 import { allSettings } from '@/lib/settings';
 import { dailyBonusStatus } from '@/lib/services/dailyBonus';
+import { normalizePlatform } from '@/lib/services/platforms';
 import db from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -27,15 +28,19 @@ export const GET = handle(async (request) => {
   const params = new URL(request.url).searchParams;
   const username = params.get('username')?.toLowerCase() ?? null;
   const secUid = params.get('sec_uid') ?? null;
+  // Which network the handle belongs to. Absent means TikTok, which is every row
+  // written before platforms existed.
+  const platform = normalizePlatform(params.get('platform'));
 
   let account = null;
-  if (secUid) account = await db.account.findOne({ where: { secUid } });
-  if (!account && username) account = await db.account.findOne({ where: { username } });
+  if (secUid) account = await db.account.findOne({ where: { secUid, platform } });
+  if (!account && username) account = await db.account.findOne({ where: { username, platform } });
 
   return {
     user: userResource(user),
     preferences,
     tiktok_info: accountResourceV2(account),
+    platform,
     // Claim state, so the client can render "Claim +100" or a countdown without asking a
     // second endpoint. Deliberately not the claim itself.
     daily_bonus: await dailyBonusStatus(user.id),

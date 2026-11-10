@@ -111,3 +111,27 @@ export function uniqueWhenPresent(field, bsonType = 'string') {
     { unique: true, partialFilterExpression: { [field]: { $type: bsonType } } },
   ];
 }
+
+/**
+ * Declare a unique index over several fields that always carry a value.
+ *
+ * The distinction from `uniqueWhenPresent` is the missing `partialFilterExpression`.
+ * That helper exists because a *nullable* field must tolerate many rows with no value;
+ * here every field is either required or has a non-null default, so every row
+ * participates and a plain compound unique index is both correct and simpler.
+ *
+ * Usage: `schema.index(...compoundUnique(['platform', 'username']));`
+ *
+ * Note this does NOT remove an older single-field unique index that Mongo already
+ * created. Changing `username: { unique: true }` to this leaves the live
+ * `username_1 { unique: true }` in place, and the server keeps enforcing the stricter
+ * rule — the schema then *looks* fixed while the second `@demo` still fails with
+ * E11000. `scripts/sync-platform-indexes.mjs` drops the stale index; verify with
+ * `scripts/mongo-check.mjs`, which reports the indexes actually present on the server.
+ */
+export function compoundUnique(fields) {
+  const key = {};
+  for (const field of fields) key[field] = 1;
+
+  return [key, { unique: true, name: `${fields.join('_')}_unique` }];
+}

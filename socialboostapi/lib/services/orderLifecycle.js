@@ -15,7 +15,9 @@
 import db from '../db';
 import { OrderStatus, OrderType, OrderCancelCode } from '../constants';
 import { getInt } from '../settings';
-import { getPostInfo, getProfileInfo } from './tiktok';
+import { getPostInfo as getPlatformPost } from './posts';
+import { getProfileInfo as getPlatformProfile } from './profiles';
+import { normalizePlatform } from './platforms';
 
 /** Laravel's FreeOrderLimitService::DEFAULT_LIMIT. */
 const FREE_ORDER_DEFAULT_LIMIT = 500;
@@ -140,12 +142,16 @@ export async function promoteNextQueuedOrder(userId, url) {
  * count on the first verification anyway.
  */
 async function resolveStartCount(order) {
+  // A queued order is promoted against the network its target actually belongs to;
+  // querying TikTok for a Facebook page would anchor the order to a stranger.
+  const platform = normalizePlatform(order.account?.platform ?? order.platform);
   if (order.isLikes) {
-    const post = await getPostInfo(order.url);
+    const post = await getPlatformPost(platform, order.url);
     return post?.likeCount ?? 0;
   }
 
-  const profile = await getProfileInfo(
+  const profile = await getPlatformProfile(
+    platform,
     order.account?.username ?? order.username,
     order.account?.secUid ?? null,
   );

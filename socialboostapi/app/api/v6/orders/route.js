@@ -12,7 +12,8 @@ import { readJson, requireString, optionalString, pageOf, optionalInt, requireIn
 import { orderResource } from '@/lib/resources';
 import { getFeed } from '@/lib/services/feed';
 import { createOrderV4, deletePendingOrder } from '@/lib/services/orders';
-import { getProfileInfo } from '@/lib/services/tiktok';
+import { getProfileInfo } from '@/lib/services/profiles';
+import { normalizePlatform } from '@/lib/services/platforms';
 import { upsertAccountFromProfile } from '@/lib/services/coinsCheck';
 import { getInt } from '@/lib/settings';
 import db from '@/lib/db';
@@ -25,16 +26,19 @@ export const GET = handle(async (request) => {
   const params = new URL(request.url).searchParams;
   const secUid = params.get('sec_uid');
   const username = params.get('username') ? params.get('username').toLowerCase() : null;
+  // The viewer's network. Absent means TikTok, which is what every client sent before
+  // platforms existed — so an older build is served exactly the same feed as before.
+  const platform = normalizePlatform(params.get('platform'));
   const page = pageOf(request, 1);
 
-  const account = await resolveViewerAccount(secUid, username);
+  const account = await resolveViewerAccount(secUid, username, platform);
 
   // Snapshot the target account's counters so the checker has an anchor to
   // compare against. Mirrors the follow_counts upsert in getOrderList.
   if (account) {
     // Best-effort. The anchor is only needed by the *verifier* later on; if refreshing
     // it fails, the feed itself must still render.
-    await refreshFollowCountAnchor(account).catch(() => {});
+    await refreshFollowCountAnchor(account, platform).catch(() => {});
   }
 
   const perPage = await getInt('freeOrdersPerPage', 10);
@@ -92,17 +96,19 @@ export const DELETE = handle(async (request) => {
   return null;
 });
 
-/** Resolve the viewer's own linked TikTok account. */
-async function resolveViewerAccount(secUid, username) {
+/** Resolve the viewer's own linked account, on the network they signed in with. */
+async function resolveViewerAccount(secUid, username, platform) {
   if (secUid) {
-    const found = await db.account.findOne({ where: { secUid } });
+    const found = await db.account.findOne({ where: { secUid, platform } });
     if (found) return found;
   }
   if (username) {
-    const found = await db.account.findOne({ where: { username } });
+    // Scoped by platform: `@demo` is a different person on each network, so a
+    // handle-only lookup could hand the viewer someone else's anchor row.
+    const found = await db.account.findOne({ where: { username, platform } });
     if (found) return found;
 
-    const profile = await getProfileInfo(username, secUid);
+    const profile = await getProfileInfo(platform, username, secUid);
     if (profile) return upsertAccountFromProfile(profile);
   }
   return null;
@@ -117,10 +123,14 @@ async function resolveViewerAccount(secUid, username) {
  */
 const ANCHOR_REFRESH_MS = 10 * 60 * 1000;
 
-async function refreshFollowCountAnchor(account) {
-  const existing = await db.followCount.findOne({ where: { username: account.username } });
+async function refreshFollowCountAnchor(account, platform) {
+  // The anchor is per (platform, username): the viewer follows people on ONE network at
+  // a time, and a TikTok anchor must never be used to judge an Instagram follow.
+  const existing = await db.followCount.findOne({
+    where: { username: account.username, platform },
+  });
 
-  // Do NOT scrape TikTok on every feed load.
+  // Do NOT scrape on every feed load.
   //
   // This used to run a live profile fetch unconditionally, so simply opening the Tasks
   // tab always cost a round-trip to the scraper (measured ~3.8s warm). On a cold
@@ -131,13 +141,17 @@ async function refreshFollowCountAnchor(account) {
     return;
   }
 
-  const profile = await getProfileInfo(account.username, account.secUid).catch(() => null);
+  // The platform's own provider, so an Instagram viewer's anchor is read from Instagram
+  // and not from the TikTok scraper (which would either miss the handle or, worse,
+  // find a different person who happens to share it).
+  const profile = await getProfileInfo(platform, account.username, account.secUid).catch(() => null);
   // A scraper outage must not break the feed; the anchor simply keeps its old value.
   if (!profile) return;
 
   if (!existing) {
     await db.followCount.create({
       data: {
+        platform,
         username: account.username,
         followerCount: profile.followerCount,
         followingCount: profile.followingCount,

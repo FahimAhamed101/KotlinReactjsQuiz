@@ -22,6 +22,13 @@ const orderSchema = withJsonShape(
         username: { type: String, required: true, index: true },
         accountId: { type: Number, default: null, index: true },
 
+        // Which network the boosted target belongs to, copied from the Account row at
+        // creation time rather than only read through the relation. Two reasons:
+        // `completeOrder`/promotion paths are handed an order that may not have `account`
+        // loaded, and an order must stay verifiable against the network it was placed on
+        // even if the Account row is later re-created on a different platform.
+        platform: { type: String, default: 'tiktok', index: true },
+
         url: { type: String, required: true },
         postPk: { type: String, default: null },
 
