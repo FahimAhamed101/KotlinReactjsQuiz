@@ -170,6 +170,22 @@
                     android:textSize="19sp"
                     android:textStyle="bold" />
 
+                <!--
+                  Size of the account being boosted — the one piece of context that makes a
+                  task judgeable. GONE rather than "0 followers" when the network publishes
+                  no count, because an unknown figure must not look like a measurement.
+                -->
+                <TextView
+                    android:id="@+id/tv_task_target_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/tt_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone"
+                    tools:text="11 followers · Verified" />
+
                 <!-- Action row: Skip | Follow +N -->
                 <LinearLayout
                     android:layout_width="match_parent"

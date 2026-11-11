@@ -128,6 +128,25 @@ export function orderResource(o, { v4 = false } = {}) {
     admin_canceled: !!o.adminCanceled,
     is_temp: false,
     user: userResource(o.user),
+    // Stats for the account this order was placed on.
+    //
+    // The performer is being asked to follow or like this account, so its size is the one
+    // piece of context that makes the task judgeable — the same counts the profile screen
+    // shows. This is an explicit allowlist rather than a spread of `o.account`: that row
+    // also carries `secUid` and `secret`, which must never reach another user's client.
+    //
+    // `null` rather than 0 for a count the network does not expose, so an unknown figure
+    // is never rendered as a confident zero.
+    target: o.account
+      ? {
+          username: o.account.username,
+          platform: o.account.platform || 'tiktok',
+          followingCount: o.account.following ?? null,
+          followerCount: o.account.follower ?? null,
+          likeCount: o.account.heartCount ?? null,
+          verified: !!o.account.verified,
+        }
+      : null,
     status,
   };
 

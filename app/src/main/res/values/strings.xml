@@ -56,6 +56,8 @@
     <string name="tt_other_tasks_empty">No other tasks in the queue right now.</string>
     <string name="tt_other_task_avatar">Queued task account avatar</string>
     <string name="tt_how_to_perform_tasks">How to properly perform tasks?</string>
+    <string name="tt_followers_count">%1$d followers</string>
+    <string name="tt_stat_verified">Verified</string>
 
     <string name="tt_nav_home">Home</string>
     <string name="tt_nav_store">Store</string>

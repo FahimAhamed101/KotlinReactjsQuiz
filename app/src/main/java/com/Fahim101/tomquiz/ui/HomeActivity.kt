@@ -783,6 +783,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var btnTaskFollow: LinearLayout
     private lateinit var tvTaskFollowLabel: TextView
     private lateinit var tvTaskReward: TextView
+    /** Follower count of the account being boosted, under the handle on the task card. */
+    private lateinit var tvTaskTargetStats: TextView
     private lateinit var layoutTaskEmpty: LinearLayout
     private lateinit var tvTaskEmpty: TextView
     private lateinit var progressTaskLoading: android.widget.ProgressBar
@@ -834,6 +836,7 @@ class HomeActivity : AppCompatActivity() {
         btnTaskFollow = findViewById(R.id.btn_task_follow)
         tvTaskFollowLabel = findViewById(R.id.tv_task_follow_label)
         tvTaskReward = findViewById(R.id.tv_task_reward)
+        tvTaskTargetStats = findViewById(R.id.tv_task_target_stats)
         layoutTaskEmpty = findViewById(R.id.layout_task_empty)
         tvTaskEmpty = findViewById(R.id.tv_task_empty)
         progressTaskLoading = findViewById(R.id.progress_task_loading)
@@ -2375,6 +2378,22 @@ class HomeActivity : AppCompatActivity() {
         tvTaskUsername.text = "@${next.username}"
         tvTaskFollowLabel.text = if (next.isLikes) "Like" else getString(R.string.tt_follow)
         tvTaskReward.text = "+${next.rewardCoins}"
+
+        // Size of the account being boosted, so the task is judgeable at a glance. Left
+        // GONE when the network publishes no follower count, because an unknown figure
+        // must not be drawn as "0 followers".
+        val targetFollowers = next.targetFollowerCount
+        if (targetFollowers == null) {
+            tvTaskTargetStats.visibility = View.GONE
+        } else {
+            tvTaskTargetStats.text = buildString {
+                append(getString(R.string.tt_followers_count, targetFollowers))
+                if (next.targetVerified) {
+                    append(" · ").append(getString(R.string.tt_stat_verified))
+                }
+            }
+            tvTaskTargetStats.visibility = View.VISIBLE
+        }
         btnTaskFollow.isEnabled = true
         btnTaskFollow.alpha = 1f
 

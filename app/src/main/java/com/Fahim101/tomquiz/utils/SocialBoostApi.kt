@@ -46,7 +46,17 @@ object SocialBoostApi {
          * different person on TikTok and Instagram — so a task card without this would
          * request the wrong mirror and fall back to a blank/expired picture.
          */
-        val platform: String = Platforms.DEFAULT
+        val platform: String = Platforms.DEFAULT,
+        /**
+         * Size of the account being boosted, shown under the handle on the task card.
+         *
+         * Nullable on purpose: a network that exposes no follower count must not be shown
+         * as a confident `0`. `optInt` turns a missing *or* null value into 0, so the
+         * parse has to test `isNull` before reading it.
+         */
+        val targetFollowerCount: Int? = null,
+        /** Whether the boosted account is verified upstream. */
+        val targetVerified: Boolean = false
     )
 
     class ApiException(val errorCode: String, message: String?) : Exception(message ?: errorCode)
@@ -372,6 +382,9 @@ object SocialBoostApi {
         for (i in 0 until items.length()) {
             val o = items.getJSONObject(i)
             val isLikes = o.optBoolean("is_likes", false)
+            // The boosted account's public stats. Absent on responses from before the field
+            // existed, so a missing block means "unknown", not "zero".
+            val target = o.optJSONObject("target")
             tasks.add(
                 TaskItem(
                     orderId = o.optInt("id"),
@@ -382,7 +395,14 @@ object SocialBoostApi {
                     url = o.optString("url", ""),
                     postPk = o.optString("post_pk", "").ifBlank { null },
                     platform = if (o.isNull("platform")) Platforms.DEFAULT
-                    else o.optString("platform", Platforms.DEFAULT).ifBlank { Platforms.DEFAULT }
+                    else o.optString("platform", Platforms.DEFAULT).ifBlank { Platforms.DEFAULT },
+                    // isNull first: optInt reports 0 for both a missing key and a JSON
+                    // null, which would print "0 followers" for a network that simply
+                    // does not publish the number.
+                    targetFollowerCount = target?.let {
+                        if (it.isNull("followerCount")) null else it.optInt("followerCount")
+                    },
+                    targetVerified = target?.optBoolean("verified", false) ?: false
                 )
             )
         }
