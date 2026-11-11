@@ -172,6 +172,16 @@ async function verifyLike({ order, account, body }) {
     };
   }
 
+  // A stub post is the offline placeholder: its like count is a hash of the URL, not a
+  // reading of the post. It is not evidence that anyone liked anything. A key-less
+  // deployment (no scraping key) used to feed this invented figure into the comparison
+  // below as the "live" count, so a like task could verify against a number that no
+  // action produced. Refuse it — and note this is a soft failure, not an "unavailable
+  // video": the post is fine, we simply cannot see it, so the order must not be cancelled.
+  if (post.isStub) {
+    return { credited: false };
+  }
+
   const row = await db.likesCount.findOne({
     where: { orderId: order.id, ...accountMatch('LikesCount', account) },
     sort: { id: 'desc' },
@@ -224,6 +234,19 @@ async function verifyFollow({ order, account, body }) {
 
   // Live count for the viewer account, on the viewer's own platform.
   const profile = await profileFor(account);
+
+  // The offline stub is NOT evidence that a follow happened.
+  //
+  // With no scraping key configured the TikTok provider answers with a deterministic
+  // stub whose following count is derived from a hash of the username (`100 + seed % 400`).
+  // That number is an invention, and it disagrees violently with the real count — for one
+  // handle the stub said 473 while the account really had 5. Since the anchor row holds
+  // whichever of the two wrote last, a check served by the stub against an anchor written
+  // from real data looked like a jump of hundreds of follows and credited instantly, with
+  // nothing performed on TikTok at all. A stub must never verify anything.
+  if (profile?.isStub) {
+    return { credited: false };
+  }
 
   // A provider outage is NOT the same as "the user did not follow".
   //

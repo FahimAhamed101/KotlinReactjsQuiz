@@ -147,6 +147,11 @@ async function refreshFollowCountAnchor(account, platform) {
   const profile = await getProfileInfo(platform, account.username, account.secUid).catch(() => null);
   // A scraper outage must not break the feed; the anchor simply keeps its old value.
   if (!profile) return;
+  // ...and neither may the offline stub. Its counters are hash-derived placeholders, so
+  // seeding the anchor from one plants a "before" value that has nothing to do with the
+  // account. Because the checker pays out only when the live count exceeds this anchor,
+  // a stub anchor is exactly how a task gets credited without the action being performed.
+  if (profile.isStub) return;
 
   if (!existing) {
     await db.followCount.create({

@@ -13,11 +13,20 @@
 //
 //   const profile = await getProfileForPlatform(platform, username);
 //
-// The rule the callers depend on: **a stub is never returned as a profile.** The
-// TikTok provider returns a deterministic stub when no API key is configured; the
-// Instagram and Facebook providers return null. Both are handled here so that a
-// platform without a configured provider produces an honest "not configured" error
-// rather than a placeholder picture that looks like the wrong person's face.
+// What the callers can rely on:
+//   * A platform with **no configured provider** yields `null` — Instagram and Facebook
+//     return null outright, so a "not configured" platform gives an honest null rather
+//     than a placeholder picture that looks like the wrong person's face.
+//   * The **TikTok** provider does NOT return null when no API key is configured: it
+//     returns a deterministic *stub* carrying `isStub: true`, a picsum avatar and
+//     hash-derived counters, so the flow stays exercisable in dev.
+//
+// That second point used to be documented here as "a stub is never returned as a
+// profile", which was simply false and cost real coins: the task checker trusted the
+// stub's invented following/like counts as proof that a user had performed an action.
+// Anything that *verifies* something must therefore check `profile.isStub` and refuse —
+// see `lib/services/coinsCheck.js`. Login and display paths may use the stub as a
+// placeholder; verification paths never may.
 
 import { Platform, normalizePlatform } from './platforms';
 import { getProfileInfo as getTikTokProfile, hasLiveProvider as hasTikTokProvider } from './tiktok.js';

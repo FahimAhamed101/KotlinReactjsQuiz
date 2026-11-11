@@ -57,7 +57,28 @@ export const POST = handle(async (request) => {
   // and stored as a zero baseline that can never be exceeded.
   const platform = normalizePlatform(body.platform);
   const info = await getPlatformPost(platform, url);
-  const lastCount = info?.likeCount ?? 0;
+
+  // Only a baseline that was actually READ may be stored. There were two ways to poison it:
+  //
+  //   * No scraping key configured -> the provider answers with the offline stub, whose
+  //     `likeCount` is a hash of the URL. That invention then becomes the "before" value the
+  //     checker compares against, so the next real reading can look like a huge jump in
+  //     likes and pay out on a task nobody performed.
+  //   * The provider failed (deleted post, scraper down) -> `info` is null, and the old
+  //     `info?.likeCount ?? 0` stored a ZERO baseline. The checker credits whenever the live
+  //     count exceeds the baseline, so a zero row means *any* nonzero count pays instantly.
+  //
+  // A genuine 0-like post is different: there `info.likeCount` really is 0, and one like
+  // taking it to 1 is a real credit. So test `info` itself, not the number.
+  if (!info || info.isStub) {
+    throw err.unknown(
+      info?.isStub
+        ? `No ${platform} provider is configured, so this post's like count cannot be read.`
+        : 'Could not read the post to take a like baseline.',
+    );
+  }
+
+  const lastCount = info.likeCount ?? 0;
 
   // Same platform, for the same reason: the viewer's Account row has to be the one that
   // belongs to this network, or the baseline is attributed to a different person.

@@ -92,7 +92,11 @@ export async function getProfileInfo(username, secUid = null) {
 export async function getPostInfo(url) {
   if (!hasLiveProvider()) {
     const seed = hashString(url);
-    return { likeCount: 1000 + (seed % 90000), cover: null };
+    // `isStub` marks this as the offline placeholder, exactly as `stubProfile` does.
+    // Callers that *verify* an action must refuse it: this like count is a hash of the
+    // URL, not a fact about the post, so treating it as the live figure let a key-less
+    // deployment "confirm" likes against an invented number.
+    return { likeCount: 1000 + (seed % 90000), cover: null, isStub: true };
   }
 
   const json = await rapidGet('/', { url });
