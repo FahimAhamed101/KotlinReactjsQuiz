@@ -791,6 +791,16 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var btnTipsToggle: ImageView
     private lateinit var swipeTasks: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
+    /** "Your next task" heading: the one-line status and what the task pays. */
+    private lateinit var tvTaskStatus: TextView
+    private lateinit var layoutTaskStatusReward: View
+    private lateinit var tvTaskStatusReward: TextView
+
+    /** "Other tasks": the rest of the fetched page, listed but not tappable. */
+    private lateinit var rvOtherTasks: RecyclerView
+    private lateinit var otherTaskAdapter: QueuedTaskAdapter
+    private lateinit var tvOtherTasksEmpty: TextView
+
     /** The queue of tasks returned by the feed, and the one currently on screen. */
     private val taskQueue = ArrayDeque<SocialBoostApi.TaskItem>()
     private var currentTask: SocialBoostApi.TaskItem? = null
@@ -831,6 +841,34 @@ class HomeActivity : AppCompatActivity() {
         layoutTipsBody = findViewById(R.id.layout_tips_body)
         btnTipsToggle = findViewById(R.id.btn_tips_toggle)
         swipeTasks = findViewById(R.id.swipe_tasks)
+
+        tvTaskStatus = findViewById(R.id.tv_task_status)
+        layoutTaskStatusReward = findViewById(R.id.layout_task_status_reward)
+        tvTaskStatusReward = findViewById(R.id.tv_task_status_reward)
+
+        // "Other tasks" — the rest of the page the feed returned. Its own backing list
+        // rather than reading `taskQueue` directly: the card pops from that queue as tasks
+        // advance, and pointing an adapter at the same deque is how you get a RecyclerView
+        // reading a mutated collection mid-layout.
+        otherTaskAdapter = QueuedTaskAdapter(mutableListOf())
+        rvOtherTasks = findViewById(R.id.rv_other_tasks)
+        rvOtherTasks.layoutManager = LinearLayoutManager(this)
+        rvOtherTasks.adapter = otherTaskAdapter
+        tvOtherTasksEmpty = findViewById(R.id.tv_other_tasks_empty)
+
+        // Same framework trap as the order screen: RecyclerView turns itself focusable in
+        // its constructor, after XML attributes are applied, so android:focusable="false"
+        // in the layout has no effect. A focusable child taller than the viewport makes the
+        // parent ScrollView pull its bottom into view, which would open this screen
+        // scrolled past the live task card.
+        rvOtherTasks.isFocusable = false
+        rvOtherTasks.isFocusableInTouchMode = false
+
+        // The reference app puts a help link under the "Other tasks" heading. It opens the
+        // step-by-step dialog the More screen already uses rather than a second copy of it.
+        findViewById<View>(R.id.btn_how_to_perform).setOnClickListener {
+            showHowItWorksDialog()
+        }
 
         // "Pull to retry" has to actually retry. The empty state used to tell the
         // user to pull while nothing listened for the gesture, so a failed or
@@ -2340,6 +2378,19 @@ class HomeActivity : AppCompatActivity() {
         btnTaskFollow.isEnabled = true
         btnTaskFollow.alpha = 1f
 
+        // The heading's status line and reward chip, both describing the task now on
+        // screen. While there is no task the chip is hidden outright (see showTaskState),
+        // so it can never show the previous task's payout next to "searching".
+        tvTaskStatus.text = if (next.isLikes) {
+            getString(R.string.tt_next_task_like, next.username)
+        } else {
+            getString(R.string.tt_next_task_follow, next.username)
+        }
+        tvTaskStatusReward.text = "+${next.rewardCoins}"
+        layoutTaskStatusReward.visibility = View.VISIBLE
+
+        renderOtherTasks()
+
         // Try the server mirror first, then whatever URL the feed supplied. The raw URL
         // is a signed TikTok CDN link that expires, so on its own it eventually 403s and
         // the card loses its picture.
@@ -2348,6 +2399,19 @@ class HomeActivity : AppCompatActivity() {
             Avatars.candidates(next.username, next.platform, next.imageUrl),
             next.username
         )
+    }
+
+    /**
+     * List the tasks still queued behind the live card.
+     *
+     * `taskQueue` is mutated in place as tasks advance, so the adapter is handed a copy
+     * and never reads the deque directly — a RecyclerView reading a collection that is
+     * being popped underneath it is how you get an index crash mid-layout.
+     */
+    private fun renderOtherTasks() {
+        val queued = taskQueue.toList()
+        otherTaskAdapter.submit(queued)
+        tvOtherTasksEmpty.visibility = if (queued.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun showTaskState(loading: Boolean, message: String? = null) {
@@ -2363,6 +2427,17 @@ class HomeActivity : AppCompatActivity() {
         }
         // A spinner left running would block the next swipe gesture.
         if (!loading) swipeTasks.isRefreshing = false
+
+        // The heading describes the task on screen, so with no task it has to fall back to
+        // "searching" — otherwise it keeps describing the card that just left.
+        tvTaskStatus.text = getString(R.string.tt_searching_task)
+        layoutTaskStatusReward.visibility = View.GONE
+
+        // Every load rebuilds the queue, so an empty list here means "nothing to show",
+        // not "out of tasks". Only say so once we have stopped loading, or the note
+        // flickers in beside the spinner.
+        otherTaskAdapter.submit(emptyList())
+        tvOtherTasksEmpty.visibility = if (loading) View.GONE else View.VISIBLE
     }
 
     /** Skip: tell the server, then advance to the next task. */

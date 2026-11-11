@@ -47,6 +47,16 @@
     <string name="tt_step_get_coins">Get Coins</string>
     <string name="tt_unfollow_warning">Unfollow after completing a task may lead to coin loss or order cancellation.</string>
 
+    <!-- Tasks screen: the "Your next task" / "Other tasks" framing. -->
+    <string name="tt_your_next_task">Your next task</string>
+    <string name="tt_searching_task">We are searching for a task</string>
+    <string name="tt_next_task_follow">Follow @%1$s to earn</string>
+    <string name="tt_next_task_like">Like a post by @%1$s to earn</string>
+    <string name="tt_other_tasks">Other tasks</string>
+    <string name="tt_other_tasks_empty">No other tasks in the queue right now.</string>
+    <string name="tt_other_task_avatar">Queued task account avatar</string>
+    <string name="tt_how_to_perform_tasks">How to properly perform tasks?</string>
+
     <string name="tt_nav_home">Home</string>
     <string name="tt_nav_store">Store</string>
     <string name="tt_nav_more">More</string>

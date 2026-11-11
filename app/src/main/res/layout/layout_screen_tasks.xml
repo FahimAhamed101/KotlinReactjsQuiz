@@ -76,10 +76,74 @@
                 android:paddingEnd="20dp"
                 android:paddingBottom="16dp">
 
+                <!-- ======================= Your next task ======================= -->
+                <!--
+                  The reference app frames the card with a heading, a one-line status on
+                  the left and what the task is worth on the right.
+
+                  Both are driven by the task actually on screen: while the feed is
+                  loading there is no task to describe, so the status says we are
+                  searching and the reward chip is hidden outright rather than showing
+                  the previous task's number.
+                -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tt_your_next_task"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="21sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tv_task_status"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:singleLine="true"
+                        android:text="@string/tt_searching_task"
+                        android:textColor="@color/tt_text_secondary"
+                        android:textSize="13sp" />
+
+                    <LinearLayout
+                        android:id="@+id/layout_task_status_reward"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/tv_task_status_reward"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/tt_gold"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            tools:text="+5" />
+
+                        <ImageView
+                            android:layout_width="15dp"
+                            android:layout_height="15dp"
+                            android:layout_marginStart="5dp"
+                            android:contentDescription="Coins"
+                            android:src="@drawable/ic_coin"
+                            app:tint="@color/tt_gold" />
+                    </LinearLayout>
+                </LinearLayout>
+
                 <!-- Avatar in its gradient ring -->
                 <FrameLayout
                     android:layout_width="150dp"
                     android:layout_height="150dp"
+                    android:layout_marginTop="16dp"
                     android:layout_gravity="center_horizontal"
                     android:background="@drawable/tt_avatar_ring"
                     android:padding="10dp">
@@ -398,6 +462,56 @@
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
+
+                <!-- ======================= Other tasks ======================= -->
+                <!--
+                  The rest of the fetched page, so the queue is visible instead of being
+                  hidden behind Skip.
+
+                  Read-only on purpose: the server decides which account is assigned to
+                  which task and what it pays, so letting a row here jump the queue would
+                  credit an order the user never completed.
+                -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="22dp"
+                    android:text="@string/tt_other_tasks"
+                    android:textColor="@color/tt_text_primary"
+                    android:textSize="19sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btn_how_to_perform"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:text="@string/tt_how_to_perform_tasks"
+                    android:textColor="@color/tt_teal"
+                    android:textSize="13sp" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_other_tasks"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:nestedScrollingEnabled="false"
+                    tools:listitem="@layout/item_task_row" />
+
+                <TextView
+                    android:id="@+id/tv_other_tasks_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/tt_other_tasks_empty"
+                    android:textColor="@color/tt_text_secondary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
             </LinearLayout>
         </ScrollView>
         </FrameLayout>
