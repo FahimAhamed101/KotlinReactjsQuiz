@@ -137,7 +137,11 @@ export async function createOrderV4({ user, body }) {
           clicks: 0,
           priority: OrderPriority.Normal,
         },
-        include: { product: { include: { productType: true } }, user: true },
+        // `account` is loaded, not just `product`/`user`: orderResource derives the
+        // mirrored avatar, the platform and the `target` stats block from it, so without
+        // it the freshly created order came back with a null target even though the same
+        // order carries one a moment later in the history response.
+        include: { product: { include: { productType: true } }, user: true, account: true },
       });
 
       await tx.user.update({
@@ -191,7 +195,9 @@ export async function createOrderV4({ user, body }) {
       priority: OrderPriority.Normal,
       purchaseToken: null,
     },
-    include: { product: { include: { productType: true } }, user: true },
+    // Same reason as the coin-paid path: orderResource reads the account for the mirrored
+    // avatar, the platform and the target stats.
+    include: { product: { include: { productType: true } }, user: true, account: true },
   });
 
   await db.user.update({
