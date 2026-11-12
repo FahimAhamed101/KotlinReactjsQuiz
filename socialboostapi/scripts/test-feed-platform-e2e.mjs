@@ -91,10 +91,16 @@ if (!token) {
   process.exit(1);
 }
 
-/** Fetch the feed as this viewer, on a chosen network. */
+/**
+ * Fetch the feed as this viewer, on a chosen network.
+ *
+ * The username must be the PROBE's, not a hard-coded one: the route resolves the viewer
+ * from it, and sending `username=facebook` made the server identify the viewer as the
+ * @facebook account itself — whose own Facebook orders are then correctly excluded as
+ * self-dealing, so the Facebook feed came back empty and looked like a scoping bug.
+ */
 async function feed(platform) {
-  const path =
-    `/api/v6/orders?platform=${platform}&username=facebook&page=1`;
+  const path = `/api/v6/orders?platform=${platform}&username=demo&page=1`;
   const res = await req('GET', path, undefined, { Authorization: `Bearer ${token}` });
   const items = Array.isArray(res.json?.data?.items) ? res.json.data.items : [];
   return { res, items };
