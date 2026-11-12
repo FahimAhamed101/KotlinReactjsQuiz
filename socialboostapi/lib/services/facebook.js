@@ -262,6 +262,25 @@ function extractPostId(raw) {
  *
  * @returns {Promise<{likeCount:number, cover:string|null}|null>}
  */
+/**
+ * Like extractCount, but null when the field is absent.
+ *
+ * extractCount returns 0 for a missing key. That is fine for a displayed count and fatal for
+ * a verification baseline, because 0 makes every later reading look like a rise. Null makes
+ * the caller refuse to pay instead.
+ */
+function extractCountOrNull(obj, ...keys) {
+  for (const k of keys) {
+    const v = obj[k];
+    if (v === null || v === undefined || v === '') continue;
+    const raw = typeof v === 'object' ? (v.count ?? v.total ?? null) : v;
+    if (raw === null || raw === undefined || raw === '') continue;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 export async function getPostInfo(url) {
   const host = facebookHost();
   if (!host || !facebookKey()) return null;
@@ -276,6 +295,10 @@ export async function getPostInfo(url) {
 
   return {
     likeCount: extractCount(result, 'reactions_count', 'reactions', 'likes_count', 'like_count'),
+    // Facebook exposes comments and shares; a video's view count is reported as `views`.
+    commentCount: extractCountOrNull(result, 'comments_count', 'comments', 'comment_count'),
+    shareCount: extractCountOrNull(result, 'shares_count', 'shares', 'share_count'),
+    playCount: extractCountOrNull(result, 'views_count', 'video_view_count', 'views', 'play_count'),
     cover: firstString(result.image, result.video_thumbnail),
   };
 }

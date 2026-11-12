@@ -266,6 +266,26 @@ export async function getProfileInfo(username) {
  * @param {string} url a canonical instagram.com/p/<code>/ link
  * @returns {Promise<{likeCount:number, cover:string|null}|null>}
  */
+/**
+ * Like extractCount, but null when the field is absent.
+ *
+ * extractCount returns 0 for a missing key, which is right for a *displayed* profile count
+ * but wrong for a verification baseline: 0 means "any later value is provably a rise", so a
+ * provider that stopped returning the field would pay for every task. Null makes the caller
+ * refuse instead.
+ */
+function extractCountOrNull(obj, ...keys) {
+  for (const k of keys) {
+    const v = obj[k];
+    if (v === null || v === undefined || v === '') continue;
+    const raw = typeof v === 'object' ? (v.count ?? v.total ?? v.count_value ?? null) : v;
+    if (raw === null || raw === undefined || raw === '') continue;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 export async function getPostInfo(url) {
   const target = absolutePostUrl(url);
   const host = instagramHost();
@@ -285,6 +305,17 @@ export async function getPostInfo(url) {
   );
   return {
     likeCount,
+    // Instagram publishes comment counts and (for video) view counts, but no share count.
+    // A shares order on Instagram is therefore refused rather than paid on trust.
+    commentCount: extractCountOrNull(
+      json,
+      'edge_media_to_comment',
+      'comment_count',
+      'comments_count',
+      'edge_media_to_parent_comment',
+    ),
+    shareCount: null,
+    playCount: extractCountOrNull(json, 'video_view_count', 'video_play_count', 'view_count'),
     cover: firstString(json.display_url, json.thumbnail_src, json.media_preview),
   };
 }

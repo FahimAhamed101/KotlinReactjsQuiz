@@ -24,6 +24,15 @@ import { getInt } from '../settings';
 import { CoinHistoryType, OrderStatus, OrderCancelCode } from '../constants';
 import { getPostInfo as getPlatformPost } from './posts';
 import { normalizePlatform, PLATFORM_LABELS } from './platforms';
+import {
+  ActionType,
+  actionOfOrder,
+  isPostAction,
+  metricFor,
+  metricValue,
+  settingFor,
+  taskHistoryType,
+} from './postActions';
 import { getProfileInfo as getPlatformProfile } from './profiles';
 import { err } from '../errors';
 import { completeOrder, promoteNextQueuedOrder } from './orderLifecycle';
@@ -97,8 +106,13 @@ export async function handleCheck({ userId, body }) {
       await sleep((attempt - 1) * 2 * 1000);
     }
 
-    const result = order.isLikes
-      ? await verifyLike({ order, account, body })
+    // Which action this order asks for. `isLikes` could only ever say "likes or not"; the
+    // store now also sells shares, comments and views, and each is proven by a different
+    // counter on the same post.
+    const action = actionOfOrder(order);
+
+    const result = isPostAction(action)
+      ? await verifyPostAction({ order, account, action })
       : await verifyFollow({ order, account, body });
 
     if (result.credited) {
@@ -106,13 +120,17 @@ export async function handleCheck({ userId, body }) {
         userId,
         order,
         account,
-        type: order.isLikes ? CoinHistoryType.LikeTask : CoinHistoryType.FollowTask,
+        type: taskHistoryType(action),
+        action,
       });
 
       // Laravel runs these after crediting, outside the coin transaction. They
       // only touch the Account row; a failure must not undo the payout, so they
       // are best-effort.
-      if (!order.isLikes) {
+      //
+      // Follow-specific on purpose: a like, share, comment or view does not move the
+      // following count, so running these would corrupt the unfollow-deduction cycle.
+      if (action === ActionType.Follow) {
         await syncCycleFollowingCount(account, result.profile).catch(() => {});
         await refreshAccountProfile(account, result.profile).catch(() => {});
       }
@@ -138,31 +156,41 @@ export async function handleCheck({ userId, body }) {
 }
 
 // ---------------------------------------------------------------------------
-// Like verification
+// Post-action verification (like / share / comment / view)
 // ---------------------------------------------------------------------------
 
-async function verifyLike({ order, account, body }) {
-  // Same reasoning as verifyFollow: `body.likes_incremented` used to short-circuit
-  // this whole function and pay out on the client's word alone, so a like task cost
-  // nothing to "complete". It is ignored now; the stored snapshot below is the
-  // evidence. The client must prime that snapshot via POST /v6/posts/url before the
-  // user taps Like.
+/**
+ * Verify any action that is proven by a counter on the target post.
+ *
+ * All four post actions work the same way: the counter is snapshotted when the task is
+ * served (`POST /v6/posts/url`), and the action counts as performed when the live value has
+ * risen above that snapshot.
+ *
+ * `body.likes_incremented` is ignored on purpose: it used to short-circuit this whole
+ * function and pay out on the client's word alone, so a like task cost nothing to complete.
+ *
+ * Every refusal below is a *soft* failure (`credited: false`) except a missing snapshot,
+ * which is a hard error: the feed never served this task, so retrying cannot help.
+ */
+async function verifyPostAction({ order, account, action }) {
+  const metric = metricFor(action);
   if (!order.postPk || order.status !== OrderStatus.Progress) {
     throw err.unknown('Order is not in progress.');
   }
+  if (!metric) throw err.unknown('Unknown post action.');
 
   // Laravel fetches the post once, up front, and the checks below all read from
   // that same response. Fetching per-branch used to let a credit land on a video
   // that had already been deleted.
-  // A like is verified against the target post's live count, on the network the
-  // order belongs to. `account` is the resolved viewer row, whose platform is the
-  // most reliable source when an older order row has no platform column.
+  //
+  // The post is read on the network the order belongs to. `account` is the resolved viewer
+  // row, whose platform is the most reliable source when an older order has no platform.
   const platform = normalizePlatform(
     order.account?.platform ?? account?.platform ?? order.platform,
   );
   const post = await getPlatformPost(platform, order.url);
 
-  // --- v2 protocol: compare the live like count to the stored snapshot ---
+  // --- v2 protocol: compare the live counter to the stored snapshot ---
   if (!post) {
     return {
       credited: false,
@@ -172,31 +200,43 @@ async function verifyLike({ order, account, body }) {
     };
   }
 
-  // A stub post is the offline placeholder: its like count is a hash of the URL, not a
-  // reading of the post. It is not evidence that anyone liked anything. A key-less
-  // deployment (no scraping key) used to feed this invented figure into the comparison
-  // below as the "live" count, so a like task could verify against a number that no
-  // action produced. Refuse it — and note this is a soft failure, not an "unavailable
-  // video": the post is fine, we simply cannot see it, so the order must not be cancelled.
+  // A stub post is the offline placeholder: its counters are hashes of the URL, not readings
+  // of the post. It is not evidence that anyone did anything. Refuse it — and note this is a
+  // soft failure, not an "unavailable video": the post is fine, we simply cannot see it, so
+  // the order must not be cancelled.
   if (post.isStub) {
     return { credited: false };
   }
 
+  const latest = metricValue(post, action);
+  // The provider did not return this counter, so the action cannot be proven and must not be
+  // paid. This is what stops "views" becoming a faucet on a scraper that omits play_count,
+  // and why an Instagram shares order refuses instead of paying on trust.
+  if (latest === null) {
+    return { credited: false };
+  }
+
+  // Rows written before `metric` existed carry null and mean "like", so the like lookup has
+  // to accept them or every existing baseline would be invisible.
+  const metricWhere =
+    action === ActionType.Like
+      ? { metric: { in: [ActionType.Like, null] } }
+      : { metric };
+
   const row = await db.likesCount.findOne({
-    where: { orderId: order.id, ...accountMatch('LikesCount', account) },
+    where: { orderId: order.id, ...metricWhere, ...accountMatch('LikesCount', account) },
     sort: { id: 'desc' },
   });
 
-  // Laravel treats a missing snapshot as a hard error rather than "not liked".
+  // Laravel treats a missing snapshot as a hard error rather than "not performed".
   // Returning a soft failure here would let the client retry forever against an
   // order the feed never actually served it.
-  if (!row) throw err.unknown('Previous like count not found.');
+  if (!row) throw err.unknown('Previous count not found.');
 
-  const latest = post.likeCount ?? 0;
   const previous = row.lastCount ?? 0;
 
   if (latest <= previous) {
-    // No new like detected.
+    // No new action detected.
     return { credited: false };
   }
 
@@ -348,8 +388,11 @@ async function verifyFollow({ order, account, body }) {
  * calls while holding a write lock. Here the promotion is deferred until after
  * the commit — same observable outcome, without the lock held across the network.
  */
-async function credit({ userId, order, account, type }) {
-  const coinsPerTask = await getInt(type === CoinHistoryType.LikeTask ? 'like' : 'follow', 0);
+async function credit({ userId, order, account, type, action }) {
+  // The reward comes from a server setting per action — never from the client and never
+  // from the order row. Follow is not a post action, so it keeps its own key.
+  const settingKey = isPostAction(action) ? settingFor(action) : 'follow';
+  const coinsPerTask = await getInt(settingKey, 0);
 
   let justCompleted = false;
 

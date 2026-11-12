@@ -107,7 +107,9 @@ const coinsOf = async (token) =>
   const body = (p) => ({
     sec_uid: secUid,
     username: handle,
-    url: p.product_type === 'Likes' ? SAMPLE_VIDEO : `https://www.tiktok.com/@${handle}`,
+    // Only Followers targets a profile. Likes, shares, comments and views are all anchored
+    // to a single post and are refused outright if given a profile link.
+    url: p.product_type === 'Followers' ? `https://www.tiktok.com/@${handle}` : SAMPLE_VIDEO,
     product_id: String(p.id),
   });
 
@@ -173,10 +175,13 @@ const coinsOf = async (token) =>
       .filter((p) => p.coins_price != null)
       .sort((x, y) => y.coins_price - x.coins_price)[0];
 
+    // Compare against the package actually attempted below. The cheapest coin package is now
+    // a 30-coin Views pack, which this 30-coin account can exactly afford — so asserting
+    // against "the cheapest" no longer proves the refusal path is even reached.
     assert(
-      'account is genuinely short of the cheapest package',
-      coinsB < coinProduct.coins_price,
-      `${coinsB} < ${coinProduct.coins_price}`,
+      'account is genuinely short of the package it attempts',
+      coinsB < dearest.coins_price,
+      `${coinsB} < ${dearest.coins_price}`,
     );
 
     const ttB = b.json.data?.tiktok_info ?? {};
@@ -186,12 +191,12 @@ const coinsOf = async (token) =>
       {
         sec_uid: ttB.secUid,
         username: ttB.uniqueId ?? 'storeflow2',
-        // The dearest package is a Likes type, so it needs a video link. The point of the
-        // assertion below is the balance, so the URL only has to be *valid* — it must not
-        // be the thing that refuses the order first.
-        url: dearest.product_type === 'Likes'
-          ? 'https://www.tiktok.com/@fahim1000011/video/7690664473157176584'
-          : `https://www.tiktok.com/@${ttB.uniqueId ?? 'storeflow2'}`,
+        // Followers is the only profile-anchored type; every other package needs a post
+        // link. The point of the assertion below is the balance, so the URL only has to be
+        // *valid* — it must not be the thing that refuses the order first.
+        url: dearest.product_type === 'Followers'
+          ? `https://www.tiktok.com/@${ttB.uniqueId ?? 'storeflow2'}`
+          : 'https://www.tiktok.com/@fahim1000011/video/7690664473157176584',
         product_id: String(dearest.id),
       },
       tokenB,

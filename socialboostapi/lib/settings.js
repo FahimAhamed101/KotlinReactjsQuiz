@@ -15,6 +15,12 @@ export const DEFAULTS = {
   referral: 250,
   like: 3,
   follow: 5,
+  // Shares, comments and views are priced lower than a follow: each is a lighter action,
+  // and a comment in particular is capped by how many the post can plausibly receive.
+  // Read by coinsCheck via POST_ACTIONS[action].setting.
+  share: 2,
+  comment: 4,
+  view: 1,
   welcomeBonus: 30,
   // The free daily claim. Next.js-native: the Laravel original has no daily bonus
   // (its `Spin` is a paid Google Play product), so the amount is a server-side setting

@@ -22,11 +22,19 @@ const TYPES = [
   'Referral',
   'FollowTask',
   'LikeTask',
+  // Shares, comments and views are tasks too — the filter has to offer them or their rows
+  // are unreachable in the ledger.
+  'ShareTask',
+  'CommentTask',
+  'ViewTask',
   'CoinsOrder',
   'Spin',
   'Unfollow',
   'FollowersOrder',
   'LikesOrder',
+  'SharesOrder',
+  'CommentsOrder',
+  'ViewsOrder',
   'CodeUnlock',
 ];
 

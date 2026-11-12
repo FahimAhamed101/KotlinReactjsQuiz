@@ -86,8 +86,26 @@ export async function getProfileInfo(username, secUid = null) {
 }
 
 /**
- * Fetch a single post's like count.
- * @returns {Promise<{likeCount:number, cover:string|null}|null>}
+ * A counter the scraper actually returned, or null when it omitted the field.
+ *
+ * Null — never 0. Every verifier credits when the live value is above the stored baseline,
+ * so coercing an unreadable counter to 0 would make the next real reading look like a rise
+ * and pay for an action nobody performed.
+ */
+function countOrNull(...values) {
+  for (const v of values) {
+    if (v === null || v === undefined || v === '') continue;
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+/**
+ * Fetch a single post's engagement counters.
+ *
+ * @returns {Promise<{likeCount:number, commentCount:number|null, shareCount:number|null,
+ *   playCount:number|null, cover:string|null, isStub?:boolean}|null>}
  */
 export async function getPostInfo(url) {
   if (!hasLiveProvider()) {
@@ -96,7 +114,17 @@ export async function getPostInfo(url) {
     // Callers that *verify* an action must refuse it: this like count is a hash of the
     // URL, not a fact about the post, so treating it as the live figure let a key-less
     // deployment "confirm" likes against an invented number.
-    return { likeCount: 1000 + (seed % 90000), cover: null, isStub: true };
+    //
+    // The other counters are null rather than invented, so share/comment/view tasks refuse
+    // to pay on a key-less deployment instead of paying against a hash of the link.
+    return {
+      likeCount: 1000 + (seed % 90000),
+      commentCount: null,
+      shareCount: null,
+      playCount: null,
+      cover: null,
+      isStub: true,
+    };
   }
 
   const json = await rapidGet('/', { url });
@@ -104,6 +132,10 @@ export async function getPostInfo(url) {
   if (!item) return null;
   return {
     likeCount: item.digg_count ?? item.statistics?.diggCount ?? 0,
+    // Confirmed present on the live payload (alongside digg_count) on 2026-11-13.
+    commentCount: countOrNull(item.comment_count, item.statistics?.commentCount),
+    shareCount: countOrNull(item.share_count, item.statistics?.shareCount),
+    playCount: countOrNull(item.play_count, item.statistics?.playCount),
     cover: item.cover ?? item.video?.cover ?? null,
   };
 }

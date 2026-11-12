@@ -62,14 +62,26 @@ async function call(method, path, body, token, extraHeaders = {}) {
   }, token);
 
   console.log('Uncompleted check response:', falseCheck.json);
-  if (falseCheck.json.data?.is_success === false) {
+  // Two refusals are legitimate: a soft `is_success:false`, or a hard error envelope (a post
+  // task with no baseline yet answers "Previous count not found"). The invariant that matters
+  // is that no coins were granted, so that is what is asserted — accepting only the soft form
+  // made this fail whenever the feed happened to serve a post task first.
+  const granted =
+    falseCheck.json.data?.is_success === true ||
+    Number(falseCheck.json.data?.coins_earned ?? 0) > 0;
+  if (!granted) {
     console.log('PASS: Uncompleted action refused coins as expected!');
   } else {
     console.error('FAIL: Uncompleted action was granted coins!', falseCheck.json);
     process.exit(1);
   }
 
-  // 4. Test positive check: client confirmed action completed on TikTok
+  // 4. The old shortcut: the CLIENT claiming it performed the action must not pay.
+  //
+  // This used to be asserted the other way round — "client confirmed action -> coins" — but
+  // that is precisely the bug that was fixed: trusting `follow_incremented` /
+  // `likes_incremented` let a tap on Follow mint coins without following anyone. The server
+  // now ignores those flags, and the only evidence it accepts is the target's live counter.
   const trueCheck = await call('POST', '/api/v6/coins/check', {
     order_id: task.id,
     tt_username: 'checkertest',
@@ -78,14 +90,14 @@ async function call(method, path, body, token, extraHeaders = {}) {
     likes_incremented: true,
   }, token);
 
-  console.log('Confirmed action check response:', trueCheck.json);
-  if (trueCheck.json.data?.is_success === true && trueCheck.json.data?.coins_earned > 0) {
-    console.log(`PASS: Confirmed action earned ${trueCheck.json.data.coins_earned} coins!`);
-  } else if (trueCheck.json.data?.already === true) {
-    console.log('PASS: Order was already credited (idempotent)!');
-  } else {
-    console.error('FAIL: Action check failed:', trueCheck.json);
+  console.log('Client-claimed action response:', trueCheck.json);
+  const paidOnClientWord =
+    trueCheck.json.data?.is_success === true && Number(trueCheck.json.data?.coins_earned ?? 0) > 0;
+  if (paidOnClientWord) {
+    console.error('FAIL: a client-claimed action was trusted and paid!', trueCheck.json);
+    process.exit(1);
   }
+  console.log('PASS: a client-claimed action grants nothing — counters are the only evidence.');
 
   console.log('ALL VERIFICATION BEHAVIOR CHECKS PASSED!');
 })();

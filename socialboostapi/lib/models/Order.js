@@ -43,6 +43,13 @@ const orderSchema = withJsonShape(
         maxProgress: { type: Number, required: true },
         actualMaxProgress: { type: Number, required: true },
         isLikes: { type: Boolean, required: true },
+        // follow | like | share | comment | view.
+        //
+        // `isLikes` can only say "likes or not", and the store now also sells shares,
+        // comments and views, so the checker needs to know which counter proves the task.
+        // Null on rows written before those types existed — derive with actionOfOrder(),
+        // which falls back to `isLikes`.
+        actionType: { type: String, default: null, index: true },
 
         // Set only for Google Play purchases, and never reused: a given purchase
         // token or Google order id may fund exactly one order.

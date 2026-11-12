@@ -19,11 +19,19 @@ const TYPES = [
   'Referral',
   'FollowTask',
   'LikeTask',
+  // Shares, comments and views are tasks too — without these the admin ledger filter would
+  // silently hide every row they produce.
+  'ShareTask',
+  'CommentTask',
+  'ViewTask',
   'CoinsOrder',
   'Spin',
   'Unfollow',
   'FollowersOrder',
   'LikesOrder',
+  'SharesOrder',
+  'CommentsOrder',
+  'ViewsOrder',
   'CodeUnlock',
 ];
 

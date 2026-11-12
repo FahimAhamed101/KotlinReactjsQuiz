@@ -10,6 +10,7 @@ import {
   isCancelledStatus,
 } from './constants';
 import { avatarUrlFor, isPlaceholderAvatar } from './services/avatar';
+import { actionOfOrder } from './services/postActions';
 
 /**
  * Make a database value safe for `JSON.stringify`.
@@ -152,6 +153,12 @@ export function orderResource(o, { v4 = false } = {}) {
     reason: o.reason,
     order_id: o.orderId,
     is_likes: o.isLikes,
+    // Which action the performer is asked to take: follow | like | share | comment | view.
+    //
+    // `is_likes` is kept because older clients switch on it, but on its own it cannot
+    // distinguish a share task from a like task — both are anchored to a post. Derived from
+    // the row's actionType, falling back to is_likes for rows written before it existed.
+    action_type: actionOfOrder(o),
     admin_canceled: !!o.adminCanceled,
     is_temp: false,
     user: userResource(o.user),

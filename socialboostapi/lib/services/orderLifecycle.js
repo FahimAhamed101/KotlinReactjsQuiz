@@ -18,6 +18,7 @@ import { getInt } from '../settings';
 import { getPostInfo as getPlatformPost } from './posts';
 import { getProfileInfo as getPlatformProfile } from './profiles';
 import { normalizePlatform } from './platforms';
+import { actionOfOrder, isPostAction, metricValue } from './postActions';
 
 /** Laravel's FreeOrderLimitService::DEFAULT_LIMIT. */
 const FREE_ORDER_DEFAULT_LIMIT = 500;
@@ -145,9 +146,11 @@ async function resolveStartCount(order) {
   // A queued order is promoted against the network its target actually belongs to;
   // querying TikTok for a Facebook page would anchor the order to a stranger.
   const platform = normalizePlatform(order.account?.platform ?? order.platform);
-  if (order.isLikes) {
+  const action = actionOfOrder(order);
+  if (isPostAction(action)) {
     const post = await getPlatformPost(platform, order.url);
-    return post?.likeCount ?? 0;
+    // The counter the order is actually measured on — likes, shares, comments or views.
+    return metricValue(post, action) ?? 0;
   }
 
   const profile = await getPlatformProfile(

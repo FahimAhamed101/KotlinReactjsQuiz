@@ -99,6 +99,13 @@ const likesCountSchema = withJsonShape(
         platform: { type: String, default: 'tiktok', index: true },
         isLiked: { type: Boolean, default: false },
         accountId: { type: Number, default: null },
+        // Which counter this baseline belongs to: like | share | comment | view.
+        //
+        // The collection is still called like_counts because likes were the only post
+        // action when it was created, and a row without this column means "like". Each
+        // action gets its own row so a comment baseline can never be compared against a
+        // share count.
+        metric: { type: String, default: null, index: true },
       },
       { timestamps: true, collection: 'like_counts' },
     ),

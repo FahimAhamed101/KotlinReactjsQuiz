@@ -15,6 +15,7 @@
 import db from '../db';
 import { OrderPriority, OrderStatus } from '../constants';
 import { normalizePlatform } from './platforms';
+import { TASK_HISTORY_TYPES } from './postActions';
 
 const SKIP_REAPPEAR_THRESHOLD = 3;
 
@@ -184,7 +185,9 @@ async function isAlreadyCredited(userId, accountId, order) {
   const where = {
     userId,
     orderId: order.id,
-    type: { in: ['FollowTask', 'LikeTask'] },
+    // Every task type, not just follow/like: a share or comment task would otherwise be
+    // served again to someone who has already been paid for it.
+    type: { in: TASK_HISTORY_TYPES },
   };
 
   if (accountId && order.accountId) {

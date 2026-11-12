@@ -16,8 +16,10 @@ import { hasLiveProvider, rapidGet } from '@/lib/services/tiktok';
 import { getPostInfo as getPlatformPost } from '@/lib/services/posts';
 import { normalizePlatform } from '@/lib/services/platforms';
 import { resolveAccount } from '@/lib/services/coinsCheck';
+import { actionOfOrder, isPostAction, metricValue } from '@/lib/services/postActions';
 import { LikesCount } from '@/lib/models';
 import { nextId } from '@/lib/models';
+import db from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +80,23 @@ export const POST = handle(async (request) => {
     );
   }
 
-  const lastCount = info.likeCount ?? 0;
+  // Which counter proves this task. The ORDER decides — a like is measured on the post's
+  // like count, a share on its share count, a comment on its comment count, a view on its
+  // play count — so the baseline is always written against the counter that will be checked.
+  const order = await db.order.findOne({ where: { id: orderId } });
+  if (!order) throw err.unknown('Order not found.');
+  const action = actionOfOrder(order);
+  if (!isPostAction(action)) throw err.unknown('This order is not a post task.');
+
+  const lastCount = metricValue(info, action);
+  // A counter the provider did not return cannot be baselined, and storing 0 here is exactly
+  // how a provider outage once made every later reading look like a rise. Refuse instead —
+  // the task simply cannot be verified on this network, which is better than paying blind.
+  if (lastCount === null) {
+    throw err.unknown(
+      `This post does not expose a ${action} count, so a ${action} task cannot be verified.`,
+    );
+  }
 
   // Same platform, for the same reason: the viewer's Account row has to be the one that
   // belongs to this network, or the baseline is attributed to a different person.
@@ -91,6 +109,8 @@ export const POST = handle(async (request) => {
     platform,
     url,
     lastCount,
+    // Which counter this baseline belongs to, so the checker compares like-with-like.
+    metric: action,
     ttUsername,
     accountId: account?.id ?? null,
     isLiked: false,

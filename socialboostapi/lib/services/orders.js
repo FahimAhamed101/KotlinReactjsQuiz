@@ -11,6 +11,14 @@ import { reactivationIneligibilityReason } from '../resources';
 import { getProfileInfo as getPlatformProfile } from './profiles';
 import { getPostInfo as getPlatformPost, resolvePost, canonicalPostUrl, postLinkHint } from './posts';
 import { normalizePlatform, profileUrl, PLATFORM_LABELS } from './platforms';
+import {
+  ActionType,
+  actionFromProductType,
+  actionOfOrder,
+  isPostAction,
+  metricValue,
+  orderHistoryType,
+} from './postActions';
 import { validateOfferProduct } from './offers';
 import { upsertAccountFromProfile } from './coinsCheck';
 
@@ -25,7 +33,16 @@ export async function createOrderV4({ user, body }) {
   });
   if (!product) throw err.productNotFound('Product not found.');
 
-  const isLikes = isLikesProduct(product);
+  // Which action this package sells: like, share, comment, view, or follow.
+  const action =
+    actionFromProductType(product.productType?.name) ??
+    (isLikesProduct(product) ? ActionType.Like : ActionType.Follow);
+
+  // `isLikes` has always meant, internally, "this order is anchored to one post" — the post
+  // resolution, the start-count read, the reactivation check and the bonus keys all branch
+  // on it. Shares, comments and views are post-anchored in exactly the same way, so they set
+  // it too; `actionType` is what records WHICH counter proves the task.
+  const isLikes = isPostAction(action);
   const isOfferProduct = product.category === ProductCategory.Offer;
   const isFree = product.coinsPrice !== null && product.coinsPrice !== undefined;
   const type = isFree ? OrderType.Free : OrderType.Premium;
@@ -113,7 +130,22 @@ export async function createOrderV4({ user, body }) {
 
   if (isFree) {
     // Affordability and the per-user order limit were already checked before any network
-    // call — see above. This block is now only the deduction.
+    // call — see above. This block now adds the start state and the deduction.
+    //
+    // Mirrors createNewOrderV4, which calls resolveOrderStartState(userId, url, true) and
+    // writes the returned status/reason onto the new row before
+    // storeOrderAndAddToHistory: a second order for a url this user already has in
+    // Progress queues behind it instead of the two racing the same target in parallel.
+    // This call was simply missing here, so every coin order started in Progress and
+    // duplicates ran concurrently.
+    //
+    // Hoisted out of the transaction for the same reason reactivateOrder hoists it — it
+    // reads through the global client, and a second connection reading inside an open
+    // interactive transaction risks "database is locked". The url compared is the
+    // canonical one that actually gets stored, since that is what a later duplicate will
+    // be matched against.
+    const startState = await resolveOrderStartState(user.id, canonicalUrl);
+
     return db.transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -128,12 +160,24 @@ export async function createOrderV4({ user, body }) {
           postPk,
           startCount: BigInt(startCount),
           expectedCount: BigInt(expectedCount),
-          status: OrderStatus.Progress,
+          status: startState.status,
+          reason: startState.reason,
           type,
           currentProgress: 0,
-          maxProgress: bonus,
+          // Laravel stores the *purchased package size* here (createNewOrderV4:
+          // 'max_progress' => $product->action_count) and the bonus-applied figure in
+          // actual_max_progress. This used to hold the bonus count, which made the two
+          // columns identical and both wrong: an order for 1000 followers with a 0.5
+          // multiplier advertised "1000 / 1500" instead of Laravel's "1000 / 1000".
+          //
+          // The distinction is load-bearing downstream. promoteNextQueuedOrder and
+          // reactivateCancelledOrder both derive `expected_count = start_count +
+          // max_progress`, so collapsing the two also skewed every promoted or
+          // reactivated order by the whole bonus amount.
+          maxProgress: product.actionCount,
           actualMaxProgress,
           isLikes,
+          actionType: action,
           clicks: 0,
           priority: OrderPriority.Normal,
         },
@@ -156,7 +200,8 @@ export async function createOrderV4({ user, body }) {
           accountId: account.id,
           username: account.username,
           postPk,
-          type: isLikes ? CoinHistoryType.LikesOrder : CoinHistoryType.FollowersOrder,
+          // The ledger records which action was bought, not just "likes or followers".
+          type: orderHistoryType(action),
           lost: product.coinsPrice,
           count: product.actionCount,
         },
@@ -188,9 +233,12 @@ export async function createOrderV4({ user, body }) {
       status: OrderStatus.Pending,
       type,
       currentProgress: 0,
-      maxProgress: bonus,
+      // Same as the coin-paid path above: Laravel's `max_progress` is the purchased
+      // package size, not the bonus-inflated target (see createNewOrderV4).
+      maxProgress: product.actionCount,
       actualMaxProgress,
       isLikes,
+          actionType: action,
       clicks: 0,
       priority: OrderPriority.Normal,
       purchaseToken: null,
@@ -217,6 +265,21 @@ function isLikesProduct(product) {
 /**
  * Apply the order-count bonus multiplier.
  * Free orders use the Free* settings, Premium orders the premium* ones.
+ *
+ * The arithmetic reproduces OrderService::getOrderCountWithBonus **exactly**:
+ *
+ *     return $actionCount + (int) ($actionCount * $bonus);
+ *
+ * Two details matter and both used to be wrong here:
+ *
+ *   * the *bonus term* is truncated, the base is not. `Math.round(actionCount *
+ *     (1 + bonus))` rounds the total instead, so a package of 10 with a 0.5
+ *     multiplier came out as 15 where Laravel delivers 15 — but 10 with 0.15 came
+ *     out as 12 where Laravel delivers 11. The delivered quantity is what the user
+ *     paid coins for, so a one-unit drift is a real difference.
+ *   * `Math.trunc`, not `Math.floor`. PHP's `(int)` cast truncates toward zero;
+ *     both operands are non-negative so they agree today, but trunc keeps the two
+ *     in step if a negative bonus is ever configured.
  */
 export async function orderCountWithBonus(actionCount, isLikes, isFree) {
   const key = isFree
@@ -228,7 +291,7 @@ export async function orderCountWithBonus(actionCount, isLikes, isFree) {
       : 'premiumFollowOrderBonus';
 
   const multiplier = await getFloat(key, 0);
-  return Math.round(actionCount * (1 + multiplier));
+  return actionCount + Math.trunc(actionCount * multiplier);
 }
 
 /** A user may only hold so many in-flight orders. */
@@ -287,10 +350,33 @@ async function resolveTargetAccount(body, { preferUsername = null, platform = 't
  * Where a new order should start.
  * Mirrors OrderService::resolveOrderStartState — a duplicate url for the same
  * user queues rather than running in parallel.
+ *
+ * @param {number}  userId
+ * @param {string}  url
+ * @param {number?} orderId exclude this row from the "is the url busy" probe.
+ *   Laravel passes `$orderId` when reactivating (where('id','!=',$orderId)); at
+ *   create time it passes null, and Laravel's builder turns `where('id','!=',null)`
+ *   into `id is not null` — i.e. no exclusion at all. Omitting the clause when
+ *   orderId is null reproduces that exactly, without depending on a null-vs-SQL
+ *   subtlety in the ORM.
+ *
+ * Deliberate gap versus Laravel: the `isFree && !FreeOrderLimitService::hasCapacity()`
+ * branch is NOT ported. Laravel parks the order as InQueue/FreeOrderLimit and relies on
+ * the `ProcessFreeOrderQueue` cron to release it FIFO once a slot frees. This port has no
+ * scheduler, and promoteNextQueuedOrder deliberately skips FreeOrderLimit rows — so
+ * honouring that branch here would park orders that nothing can ever release. Free orders
+ * therefore always start in Progress; the per-user cap in checkOrdersCount is still
+ * enforced before any network call.
  */
-export async function resolveOrderStartState(userId, url) {
+export async function resolveOrderStartState(userId, url, orderId = null) {
   const duplicate = await db.order.findOne({
-    where: { userId, url, status: OrderStatus.Progress, deletedAt: null },
+    where: {
+      userId,
+      url,
+      status: OrderStatus.Progress,
+      deletedAt: null,
+      ...(orderId ? { id: { not: orderId } } : {}),
+    },
     select: { id: true },
   });
   if (duplicate) return { status: OrderStatus.InQueue, reason: null };
@@ -384,6 +470,10 @@ export async function reactivateOrder(user, orderId) {
   const startState = await resolveOrderStartState(
     order.userId,
     availability.url ?? order.url,
+    // Laravel passes $order->id here (where('id','!=',$orderId)) so the row being
+    // reactivated is never counted as "this url is already busy" — without it the order
+    // could queue itself behind itself.
+    order.id,
   );
 
   return db.transaction(async (tx) => {
@@ -433,12 +523,15 @@ async function getReactivationAvailability(order) {
   // reliable source, and an absent value still means TikTok.
   const platform = normalizePlatform(order.account?.platform ?? order.platform);
 
-  if (order.isLikes) {
+  const action = actionOfOrder(order);
+  if (isPostAction(action)) {
     const post = await getPlatformPost(platform, order.url);
 
     return {
       available: post !== null,
-      startCount: post?.likeCount ?? Number(order.startCount ?? 0),
+      // Re-anchor to the counter THIS order is measured on. A share order must not be
+      // restarted from the post's like count, or its progress would be meaningless.
+      startCount: metricValue(post, action) ?? Number(order.startCount ?? 0),
     };
   }
 

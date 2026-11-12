@@ -14,6 +14,7 @@
 import db from '../db';
 import { getInt } from '../settings';
 import { CoinHistoryType } from '../constants';
+import { TASK_HISTORY_TYPES } from './postActions';
 
 const SLOT_MS = 3 * 60 * 60 * 1000;
 
@@ -91,7 +92,9 @@ export async function creditReferral(referral, newUserId) {
   const taskCount = await db.coinsHistory.count({
     where: {
       userId: referrer.id,
-      type: { in: [CoinHistoryType.LikeTask, CoinHistoryType.FollowTask] },
+      // Every task type counts toward the referral cap — a share or comment is work too, and
+      // counting only follow/like would let someone farm referrals with the other actions.
+      type: { in: TASK_HISTORY_TYPES },
     },
   });
 
