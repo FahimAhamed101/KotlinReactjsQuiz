@@ -3,6 +3,7 @@
 // Ported from App\Services\OrderFeed\OrderFeedFactory.
 //
 // Serves *other people's* in-progress orders to the viewer, excluding:
+//   * orders on a network other than the one the viewer is signed in on,
 //   * the viewer's own orders (by user_id and by linked account username),
 //   * orders the viewer's account has already been credited for
 //     (a coins_histories row matching username / post_pk / account),
@@ -13,6 +14,7 @@
 
 import db from '../db';
 import { OrderPriority, OrderStatus } from '../constants';
+import { normalizePlatform } from './platforms';
 
 const SKIP_REAPPEAR_THRESHOLD = 3;
 
@@ -21,6 +23,31 @@ const orderInclude = {
   user: true,
   account: true,
 };
+
+/**
+ * Restrict the feed to the viewer's own network.
+ *
+ * A follow/like is verified by comparing the *viewer's own* counter on the task's
+ * network against the snapshot taken when the task was served — `verifyFollow` calls
+ * `profileFor(account)`, and `account` is the row resolved from the request's
+ * `platform`. So an Instagram task handed to a TikTok-only viewer can never verify:
+ * following on Instagram does not move the TikTok following count, the comparison
+ * reads "no new follow", and the task silently never pays no matter how many times it
+ * is completed. Serving those rows is how a TikTok user ended up with
+ * "Follow @nike on Instagram" cards that were impossible to earn from.
+ *
+ * Scoping the feed is what makes the promise "if the user follows, he gets a coin"
+ * actually hold: the only tasks offered are ones the viewer is on the right network to
+ * complete.
+ *
+ * Rows written before `platform` existed carry no value, and every order from that era
+ * was a TikTok order — so a null is treated as TikTok: visible to a TikTok viewer, and
+ * to nobody else.
+ */
+function platformClause(platform) {
+  const p = normalizePlatform(platform);
+  return p === 'tiktok' ? { platform: { in: ['tiktok', null] } } : { platform: p };
+}
 
 /**
  * Serve the viewer's feed, and never let it stay empty because of skips alone.
@@ -37,7 +64,8 @@ const orderInclude = {
  * the skips and serve the tasks again. The `< 3` fallback and the normal loop are
  * both tried first, so this never overrides a feed that has anything to offer.
  *
- * @param {{userId:number, accountId:number|null, username:string|null, page:number, perPage:number}} ctx
+ * @param {{userId:number, accountId:number|null, username:string|null, platform?:string,
+ *   page:number, perPage:number}} ctx
  */
 export async function getFeed(ctx) {
   const first = await collectFeed(ctx);
@@ -55,7 +83,7 @@ export async function getFeed(ctx) {
   return collectFeed(ctx);
 }
 
-async function collectFeed({ userId, accountId, username, page = 1, perPage = 10 }) {
+async function collectFeed({ userId, accountId, username, platform, page = 1, perPage = 10 }) {
   const items = [];
 
   for (const priority of [OrderPriority.Normal, OrderPriority.Low]) {
@@ -71,6 +99,7 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
         type: { in: types },
         priority,
         deletedAt: null,
+        ...platformClause(platform),
       },
       include: orderInclude,
       sort: { id: 'desc' },
@@ -118,12 +147,15 @@ async function collectFeed({ userId, accountId, username, page = 1, perPage = 10
 
     if (skips.length > 0) {
       // Ask for one extra so `hasNext` is a real answer rather than a guess.
+      // The platform clause applies here as well — a skipped task from another network
+      // must not sneak back in through the fallback.
       const fallbackOrders = await db.order.find({
         where: {
           id: { in: skips.map((s) => s.orderId) },
           status: OrderStatus.Progress,
           deletedAt: null,
           userId: { not: userId },
+          ...platformClause(platform),
         },
         include: orderInclude,
         sort: { id: 'asc' },

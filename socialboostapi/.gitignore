@@ -2,7 +2,7 @@ node_modules/
 .next/
 # Left behind when `next dev` cannot clean `.next` itself (sandbox safe-delete guard);
 # see MEMORY.md dev-loop rule 8.
-.next-stale/
+.next-stale*/
 out/
 build/
 

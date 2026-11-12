@@ -46,6 +46,10 @@ export const GET = handle(async (request) => {
     userId: user.id,
     accountId: account?.id ?? null,
     username: account?.username ?? null,
+    // Only tasks on the network the viewer is signed in on. Verification compares the
+    // viewer's OWN counter on the task's network, so a task from another network can
+    // never be completed and never pays — see platformClause() in lib/services/feed.js.
+    platform,
     page,
     perPage,
   });

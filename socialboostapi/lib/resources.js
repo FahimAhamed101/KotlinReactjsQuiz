@@ -9,7 +9,7 @@ import {
   REACTIVATABLE_SYSTEM_REASONS,
   isCancelledStatus,
 } from './constants';
-import { avatarUrlFor } from './services/avatar';
+import { avatarUrlFor, isPlaceholderAvatar } from './services/avatar';
 
 /**
  * Make a database value safe for `JSON.stringify`.
@@ -87,6 +87,27 @@ export function accountResourceV2(a) {
 }
 
 /**
+ * The still of the video a LIKES order is about, or null when none was captured.
+ *
+ * `createOrderV4` seeds `orders.image` with the target account's avatar and then
+ * **overwrites it** with the post's cover when the provider supplies one. So comparing the
+ * snapshot against the account avatar says exactly whether a real cover was captured —
+ * which is why this needs no second column, and why an avatar is never passed off as a
+ * video still.
+ */
+function postCoverFor(o) {
+  const snapshot = o.image || null;
+  if (!snapshot) return null;
+  // The offline stub's picsum placeholder is not a picture of anything. Rendering it as the
+  // video would look like a real still of the wrong post, which is worse than falling back
+  // to the account picture.
+  if (isPlaceholderAvatar(snapshot)) return null;
+  const avatar = (o.account && o.account.avatarLarger) || null;
+  if (avatar && snapshot === avatar) return null; // no cover was captured; this is the avatar
+  return snapshot;
+}
+
+/**
  * OrderResource.
  * `status` is mapped from SmmPanel back to Progress — the client has no concept
  * of the SMM handover state.
@@ -109,7 +130,13 @@ export function orderResource(o, { v4 = false } = {}) {
     // lookup by (platform, username), and the same handle is a different person on
     // each network — so an order row without this would render the wrong picture.
     platform: (o.account && o.account.platform) || o.platform || 'tiktok',
-    url: (o.url || '').toLowerCase(),
+    // NOT lowercased. This used to be `(o.url || '').toLowerCase()`, which silently broke
+    // every Instagram and Facebook post link: an Instagram shortcode is case-sensitive, so
+    // `/p/tsxp1hhQTG/` lowercased to `/p/tsxp1hhqtg/` resolves to nothing (verified: the
+    // real one returns a like count, the lowercased one returns null). The client then
+    // opened a dead link — which is why a "like this post" task dropped the user somewhere
+    // unrelated — and the like baseline was fetched from a URL that does not exist.
+    url: o.url || '',
     type: o.type,
     username: o.username,
     post_id: o.postPk,
@@ -145,6 +172,22 @@ export function orderResource(o, { v4 = false } = {}) {
           followerCount: o.account.follower ?? null,
           likeCount: o.account.heartCount ?? null,
           verified: !!o.account.verified,
+        }
+      : null,
+    // The video a LIKES task is about.
+    //
+    // `image` above cannot carry this: it prefers the account's mirrored avatar, which is
+    // what order history and follow tasks want — and that silently discarded the post cover
+    // captured when the order was placed. A performer told to "like the post" needs to see
+    // WHICH post; an avatar does not identify a video.
+    //
+    // Null for follow tasks, and null for a like order whose provider returned no cover, so
+    // the client falls back to the account picture instead of drawing an empty frame.
+    post: o.isLikes
+      ? {
+          cover: postCoverFor(o),
+          url: o.url || '',
+          post_id: o.postPk ?? null,
         }
       : null,
     status,
