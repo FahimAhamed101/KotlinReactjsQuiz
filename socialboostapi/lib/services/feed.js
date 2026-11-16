@@ -51,6 +51,36 @@ function platformClause(platform) {
 }
 
 /**
+ * Collapse orders that point at the same destination, keeping one row per `url`.
+ *
+ * Ported from OrderFeedFactory::uniqueElements, which hashes on `$element["url"]`:
+ *
+ *   foreach ($arr as $element) { $unique_array[$element["url"]] = $element; }
+ *
+ * In PHP, re-assigning an existing key overwrites the value but leaves the key at its
+ * original position — so the survivor sits where the *first* duplicate sat and carries
+ * the *last* duplicate's payload. A Map gives the identical result in JS, which matters
+ * because the payload is what the client renders (id, owner, reward).
+ *
+ * Without this, three separate orders for the same Instagram post were served as three
+ * visually identical cards — "Like @fahim_prime3000" repeated, and likewise for @nike
+ * and @shermurod.lvl2010. The viewer cannot tell them apart, so the list looks broken
+ * and the same task appears to be re-offered forever. Only the first can actually pay
+ * (the later ones are caught by isAlreadyCredited once one succeeds), so the extra rows
+ * were pure noise.
+ */
+function uniqueElements(orders) {
+  const byUrl = new Map();
+  for (const order of orders) {
+    // An order with no url cannot be compared to anything, so it must not collapse into
+    // some other url-less order. Key those on their own id.
+    const key = order.url ? String(order.url) : `#id:${order.id}`;
+    byUrl.set(key, order);
+  }
+  return [...byUrl.values()];
+}
+
+/**
  * Serve the viewer's feed, and never let it stay empty because of skips alone.
  *
  * A skip is meant to mean "not this one, right now" — it is a *deferral*, not a
@@ -111,11 +141,14 @@ async function collectFeed({ userId, accountId, username, platform, page = 1, pe
     for (const order of candidates) {
       // Never serve a viewer their own order. Completing it would be self-dealing: they
       // would earn the completion reward for an action they "performed" on themselves.
-      // Laravel excludes by user_id AND by the linked account, so match both here.
+      // Laravel excludes by user_id AND by the target handle (`->where('username', '!=',
+      // $account->username)`); the linked-account comparison is kept as well, because it
+      // still catches an order whose handle was edited after the order was placed.
       if (order.userId != null && Number(order.userId) === Number(userId)) continue;
       if (accountId != null && order.accountId != null && Number(order.accountId) === Number(accountId)) continue;
+      if (username && String(order.username).toLowerCase() === String(username).toLowerCase()) continue;
 
-      if (await isAlreadyCredited(userId, accountId, order)) continue;
+      if (await isAlreadyCredited(username, order)) continue;
       if (await isSkipped(accountId, order.id)) continue;
       eligible.push(order);
     }
@@ -125,29 +158,31 @@ async function collectFeed({ userId, accountId, username, platform, page = 1, pe
     // request returned the first `perPage` eligible orders, so with 15 orders in
     // circulation the feed served the same 10 forever and the other 5 were unreachable,
     // and `has_next` was permanently true. Paginate the filtered list.
+    //
+    // De-duplicate before paginating, so a page is `perPage` distinct destinations and
+    // `hasNext` means "more distinct tasks", not "more rows that look the same".
+    const deduped = uniqueElements(eligible);
     const start = (page - 1) * perPage;
-    const slice = eligible.slice(start, start + perPage);
+    const slice = deduped.slice(start, start + perPage);
 
     if (slice.length > 0) {
       items.push(...slice);
-      return { items, hasNext: eligible.length > start + perPage, page, usedFallback: false };
+      return { items, hasNext: deduped.length > start + perPage, page, usedFallback: false };
     }
   }
 
   // --- Fallback: orders this account skipped, until skipped 3x ---
   if (accountId) {
-    // Same offset as above: the fallback must page too, or re-requesting it returns
-    // the same rows.
-    const start = (page - 1) * perPage;
+    // Read the whole skip set and paginate the *filtered* result below, for the same
+    // reason the main feed does: paging the skip rows first and filtering afterwards
+    // returns a short page and a `hasNext` that does not mean anything.
     const skips = await db.skipCount.find({
       where: { accountId, count: { lt: SKIP_REAPPEAR_THRESHOLD } },
       sort: { id: 'asc' },
-      skip: start,
-      limit: perPage,
+      limit: 1000,
     });
 
     if (skips.length > 0) {
-      // Ask for one extra so `hasNext` is a real answer rather than a guess.
       // The platform clause applies here as well — a skipped task from another network
       // must not sneak back in through the fallback.
       const fallbackOrders = await db.order.find({
@@ -160,16 +195,33 @@ async function collectFeed({ userId, accountId, username, platform, page = 1, pe
         },
         include: orderInclude,
         sort: { id: 'asc' },
-        limit: perPage + 1,
+        limit: 1000,
       });
 
-      const slice = fallbackOrders.slice(0, perPage);
-      return {
-        items: slice,
-        hasNext: fallbackOrders.length > perPage,
-        page,
-        usedFallback: true,
-      };
+      // Laravel's getSkippedOrders runs the *same* two history exclusions as the main
+      // feed (the `whereNotExists` on coins_histories, keyed on the target handle and on
+      // post_pk). Omitting them made the fallback the one path that still handed back a
+      // task already paid for — the "Could not verify" loop, reached through Skip.
+      const eligible = [];
+      for (const order of fallbackOrders) {
+        if (username && String(order.username).toLowerCase() === String(username).toLowerCase()) continue;
+        if (await isAlreadyCredited(username, order)) continue;
+        eligible.push(order);
+      }
+
+      // Laravel's getAllSkippedOrders runs the same `uniqueElements` on the merged skip
+      // set, so the fallback collapses duplicates exactly like the main feed does.
+      const deduped = uniqueElements(eligible);
+      const start = (page - 1) * perPage;
+      const slice = deduped.slice(start, start + perPage);
+      if (slice.length > 0) {
+        return {
+          items: slice,
+          hasNext: deduped.length > start + perPage,
+          page,
+          usedFallback: true,
+        };
+      }
     }
   }
 
@@ -177,28 +229,62 @@ async function collectFeed({ userId, accountId, username, platform, page = 1, pe
 }
 
 /**
- * Has the viewer's account already been credited for this order?
- * Matches on account_id when both sides have one, otherwise on username.
- * Mirrors CoinsCheckService::matchAccount + the history dedup query.
+ * Has the viewer already been paid for acting on this order's target?
+ *
+ * Ported from the two `whereNotExists` blocks in
+ * OrderFeedFactory::getOrdersForUser, which key on the *thing acted upon* rather than on
+ * the order row:
+ *
+ *   follow   -> a coins_histories row for this viewer whose own order targets the same
+ *               handle (`whereColumn('o2.username', 'orders.username')`), so a second
+ *               order for the same person is not offered once you already follow them,
+ *   like/…   -> a coins_histories row for this viewer carrying the same `post_pk`.
+ *
+ * This used to match `orderId: order.id` together with `accountId: order.accountId`.
+ * That pair can never match: `orders.account_id` is the *order owner's* account, while
+ * the ledger records the *viewer's* (`credit()` writes `accountId: account.id` for the
+ * viewer, and Laravel's addToHistoryAndIncreaseCoins does the same). The exclusion was
+ * therefore dead, so a task that had already paid out came straight back into the feed —
+ * and tapping it again could not pay, which surfaced to the user as "Could not verify"
+ * for a task they had genuinely completed moments earlier.
  */
-async function isAlreadyCredited(userId, accountId, order) {
-  const where = {
-    userId,
-    orderId: order.id,
-    // Every task type, not just follow/like: a share or comment task would otherwise be
-    // served again to someone who has already been paid for it.
-    type: { in: TASK_HISTORY_TYPES },
-  };
+async function isAlreadyCredited(viewerUsername, order) {
+  if (!viewerUsername) return false;
 
-  if (accountId && order.accountId) {
-    where.accountId = order.accountId;
-  } else if (order.username) {
-    where.username = order.username;
-  } else {
-    return false;
+  // A post action is identified by the post it was performed on.
+  if (order.postPk) {
+    const hit = await db.coinsHistory.findOne({
+      where: {
+        username: viewerUsername,
+        postPk: order.postPk,
+        orderId: { not: null },
+        type: { in: TASK_HISTORY_TYPES },
+      },
+      select: { id: true },
+    });
+    return !!hit;
   }
 
-  const hit = await db.coinsHistory.findOne({ where, select: { id: true } });
+  // A follow is identified by *who* was followed, across every order for that handle:
+  // already following @x means no order targeting @x can pay again.
+  if (!order.username) return false;
+
+  const siblings = await db.order.find({
+    where: { username: order.username },
+    select: { id: true },
+    limit: 1000,
+  });
+  if (!siblings.length) return false;
+
+  const hit = await db.coinsHistory.findOne({
+    where: {
+      username: viewerUsername,
+      postPk: null,
+      orderId: { in: siblings.map((o) => o.id) },
+      type: { in: TASK_HISTORY_TYPES },
+    },
+    select: { id: true },
+  });
   return !!hit;
 }
 

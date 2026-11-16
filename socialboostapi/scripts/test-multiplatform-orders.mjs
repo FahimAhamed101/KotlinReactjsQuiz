@@ -30,6 +30,37 @@ const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 require('./load-env.cjs').loadEnv(join(here, '..', '.env'));
 
+// ---------------------------------------------------------------------------
+// This script POSTs REAL orders. The *server* it talks to is localhost, but the
+// *database* it writes to is whatever `.env` points at — and in this project that is
+// the shared Atlas cluster the app itself serves from. Running it therefore leaves
+// genuine orders in live data, which is exactly how the task feed ended up carrying
+// "Like a post by @fahim_prime3000" tasks whose post was this suite's fixture
+// (`/p/tsxp1hhQTG/`, a 2014 @instagram post that is already liked at 272,358). Those
+// orders can never be verified, so every viewer saw a task that silently refused to
+// pay — indistinguishable from a broken coin payout.
+//
+// Refuse unless the database is disposable, so the damage cannot recur. Pass
+// --i-know-this-writes-orders to override deliberately.
+// ---------------------------------------------------------------------------
+const WRITES_ORDERS_FLAG = '--i-know-this-writes-orders';
+const mongoUri = process.env.MONGODB_URI || '';
+const mongoDb = process.env.MONGODB_DB || 'coinapp';
+const disposableDb =
+  /(^|\/\/)(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(mongoUri) || /test/i.test(mongoDb);
+
+if (!disposableDb && !process.argv.includes(WRITES_ORDERS_FLAG)) {
+  console.error(
+    '\nRefusing to run.\n\n' +
+      'This script creates real orders, but MONGODB_URI is not a disposable database\n' +
+      `(db name: ${mongoDb}). Orders created here become tasks every user can see, and\n` +
+      'an order whose target cannot be verified is a task that can never pay.\n\n' +
+      `Point MONGODB_URI at a local/test database, or re-run with ${WRITES_ORDERS_FLAG}\n` +
+      'if you really mean to write into this one.\n'
+  );
+  process.exit(1);
+}
+
 const { buildSignatureHeaders } = await import('../lib/signature.js');
 
 const BASE = 'http://127.0.0.1:4100';
@@ -174,6 +205,10 @@ const CASES = [
 ];
 
 const created = [];
+// What these probe orders should cost in total, accumulated from each order's OWN product
+// block so the balance assertion compares against the server's price rather than a
+// hardcoded figure that drifts the moment the catalogue is repriced.
+let coinsSpent = 0;
 
 for (const c of CASES) {
   console.log(`\n=== ${c.label} ===`);
@@ -194,6 +229,16 @@ for (const c of CASES) {
   // start_count > 0 is the proof a live provider call for THIS network succeeded.
   expect(`${c.label}: live start_count > 0`, Number(o.start_count ?? 0) > 0, String(o.start_count));
   expect(`${c.label}: expected_count = start + bonus`, Number(o.expected_count ?? 0) > Number(o.start_count ?? 0), `${o.start_count} -> ${o.expected_count}`);
+  // max_progress is the PURCHASED PACKAGE SIZE (Laravel createNewOrderV4:
+  // 'max_progress' => $product->action_count), not the bonus-inflated target — that lives
+  // in actual_max_progress. Holding the bonus count here instead made the two columns
+  // identical and skewed expected_count on every promoted/reactivated order.
+  expect(
+    `${c.label}: max_progress = product.action_count`,
+    Number(o.max_progress ?? -1) === Number(o.product?.action_count ?? -2),
+    `max_progress=${o.max_progress} action_count=${o.product?.action_count} actual_max_progress=${o.actual_max_progress}`,
+  );
+  coinsSpent += Number(o.product?.coins_price ?? 0);
   if (c.expect.postId) {
     expect(`${c.label}: post_id recovered from link`, o.post_id === c.expect.postId, String(o.post_id));
   }
@@ -246,6 +291,24 @@ console.log(`  withdrew ${removed}/${created.length} probe order(s) (only Pendin
 
 const coinsAfter = await readCoins(auth);
 console.log(`  coins after: ${coinsAfter}`);
+
+// The coin-logic parity assertion: buying a package must cost exactly the package price on
+// every network — nothing more, nothing less. This is the check that would catch a
+// platform-specific surcharge, a double deduction, or a deduction that never happened.
+//
+// Every order above is coin-priced and therefore created in Progress, which the DELETE
+// below cannot remove (only Pending rows are deletable), so the entire `coinsSpent` should
+// be gone from the balance by now.
+if (coinsBefore !== null && coinsAfter !== null) {
+  const delta = coinsBefore - coinsAfter;
+  expect(
+    'coins spent = sum of product prices, across all three networks',
+    delta === coinsSpent,
+    `before=${coinsBefore} after=${coinsAfter} delta=${delta} expected=${coinsSpent} (${created.length} order(s))`,
+  );
+} else {
+  expect('coin balance readable before and after', false, `before=${coinsBefore} after=${coinsAfter}`);
+}
 
 console.log(`\n${fail === 0 ? 'ALL PASS' : `${fail} FAILURE(S)`}  pass=${pass} fail=${fail}\n`);
 process.exit(fail === 0 ? 0 : 1);
