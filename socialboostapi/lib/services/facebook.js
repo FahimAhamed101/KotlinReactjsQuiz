@@ -31,7 +31,7 @@ import { Platform, profileUrl } from './platforms';
 
 /** True when a Facebook scraping provider is configured. */
 export function hasLiveProvider() {
-  return facebookHost() !== null && facebookKey().length > 0;
+  return facebookHost() !== null && facebookKeys().length > 0;
 }
 
 function facebookHost() {
@@ -39,8 +39,36 @@ function facebookHost() {
   return host ? host.replace(/^https?:\/\//i, '').replace(/\/+$/, '') : null;
 }
 
-function facebookKey() {
-  return (process.env.FACEBOOK_RAPID_KEY || process.env.RAPID_API_KEY || '').trim();
+/**
+ * Every configured Facebook key, in the order they should be tried.
+ *
+ * Mirrors `instagramKeys()` — see the long note there. A RapidAPI allowance belongs to a
+ * subscription, so one API running dry must not take the network down; extra keys go in
+ * FACEBOOK_RAPID_KEYS, comma-separated.
+ */
+function facebookKeys() {
+  const raw = [process.env.FACEBOOK_RAPID_KEY, process.env.FACEBOOK_RAPID_KEYS]
+    .filter(Boolean)
+    .join(',');
+  const keys = raw
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const unique = [...new Set(keys)];
+  if (unique.length) return unique;
+  const lastResort = (process.env.RAPID_API_KEY || '').trim();
+  return lastResort ? [lastResort] : [];
+}
+
+/** The key most likely to answer, first. See the same idea in instagram.js. */
+let lastGoodKey = null;
+
+function orderedKeys() {
+  const keys = facebookKeys();
+  if (!lastGoodKey) return keys;
+  const i = keys.indexOf(lastGoodKey);
+  if (i <= 0) return keys;
+  return [keys[i], ...keys.slice(0, i), ...keys.slice(i + 1)];
 }
 
 /** The endpoint path. `/page/details` answers for pages and profiles both. */
@@ -77,11 +105,29 @@ function extractCount(obj, ...keys) {
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------------
+//
+// Same distinction as the Instagram provider makes, and for the same reason: `null`
+// otherwise means both "no such page" and "the scraper refused to answer", and relaying
+// the second as an invalid handle is what locked users out of sign-in when the shared
+// RapidAPI quota ran out. See `providerUnavailable` in `lib/services/instagram.js` for
+// the full account; this module keeps its own flag because a Facebook lookup failing
+// must not be reported as an Instagram outage, or vice versa.
+let lastUnavailable = false;
+
+/** True when the most recent [getProfileInfo] failed for availability reasons. */
+export function providerUnavailable() {
+  return lastUnavailable;
+}
+
 /**
- * Call the scraper.
+ * Call the scraper, trying each configured key until one answers.
  *
- * Returns parsed JSON, or null when the endpoint does not exist, the key is not
- * subscribed to it, or the request failed — the caller treats all three as "no profile".
+ * Returns parsed JSON, or null when the endpoint does not exist or every key refused —
+ * the caller treats both as "no profile". 429/403 describe one key, so they rotate to the
+ * next; quota, subscription and transport failures also raise the availability flag.
  */
 async function rapidGet(host, path, params) {
   const url = new URL(`https://${host}${path}`);
@@ -89,28 +135,48 @@ async function rapidGet(host, path, params) {
     if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, String(v));
   }
 
-  const controller = new AbortController();
-  // Profile pages are heavier than a TikTok user lookup; 12s is still well inside the
-  // mobile client's own timeout while giving the scraper room to render.
-  const timer = setTimeout(() => controller.abort(), 12000);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'X-RapidAPI-Key': facebookKey(),
-        'X-RapidAPI-Host': host,
-      },
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const text = await res.text();
-    if (!text) return null;
-    return JSON.parse(text);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+  let allRefused = false;
+
+  for (const key of orderedKeys()) {
+    const controller = new AbortController();
+    // Profile pages are heavier than a TikTok user lookup; 12s is still well inside the
+    // mobile client's own timeout while giving the scraper room to render.
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'X-RapidAPI-Key': key,
+          'X-RapidAPI-Host': host,
+        },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+
+      if (res.status === 429 || res.status === 403) {
+        allRefused = true;
+        continue;
+      }
+
+      if (!res.ok) {
+        // 404 = this candidate path is not the scraper's; 5xx = the scraper is broken.
+        if (res.status >= 500) lastUnavailable = true;
+        return null;
+      }
+
+      const text = await res.text();
+      if (!text) return null;
+      const json = JSON.parse(text);
+      lastGoodKey = key;
+      return json;
+    } catch {
+      lastUnavailable = true;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  if (allRefused) lastUnavailable = true;
+  return null;
 }
 
 /**
@@ -168,8 +234,11 @@ export async function getProfileInfo(username) {
   const handle = String(username || '').trim().replace(/^@/, '').toLowerCase();
   if (!handle) return null;
 
+  // Cleared up front so the flag always describes THIS call — see instagram.js.
+  lastUnavailable = false;
+
   const host = facebookHost();
-  if (!host || !facebookKey()) return null;
+  if (!host || facebookKeys().length === 0) return null;
 
   const target = profileUrl(Platform.Facebook, handle);
   if (!target) return null;
@@ -283,7 +352,7 @@ function extractCountOrNull(obj, ...keys) {
 
 export async function getPostInfo(url) {
   const host = facebookHost();
-  if (!host || !facebookKey()) return null;
+  if (!host || facebookKeys().length === 0) return null;
 
   const postId = extractPostId(url);
   if (!postId) return null;
@@ -300,6 +369,12 @@ export async function getPostInfo(url) {
     shareCount: extractCountOrNull(result, 'shares_count', 'shares', 'share_count'),
     playCount: extractCountOrNull(result, 'views_count', 'video_view_count', 'views', 'play_count'),
     cover: firstString(result.image, result.video_thumbnail),
+    // For the order preview. Facebook reports a display name rather than a handle, which is
+    // why the field is `author` and not `username` — the client renders whatever it gets.
+    author: firstString(result.from?.name, result.page?.name, result.author),
+    nickname: firstString(result.from?.name, result.page?.name),
+    avatar: null,
+    desc: firstString(result.message, result.description, result.title),
   };
 }
 

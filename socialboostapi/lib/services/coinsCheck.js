@@ -33,11 +33,45 @@ import {
   settingFor,
   taskHistoryType,
 } from './postActions';
-import { getProfileInfo as getPlatformProfile } from './profiles';
+import {
+  getProfileInfo as getPlatformProfile,
+  providerUnavailable as platformProviderUnavailable,
+} from './profiles';
 import { err } from '../errors';
 import { completeOrder, promoteNextQueuedOrder } from './orderLifecycle';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// How far a `follow_counts` anchor may sit above the live count before it is treated as
+// corrupt rather than as an unfollow, and how closely the Account row must agree with the
+// live count before it is trusted as the replacement baseline. See verifyFollow.
+//
+// A stub anchor is off by hundreds (473 vs 5), so a 10-follow gap is already impossible to
+// confuse with a real session; the 2-follow tolerance covers someone who followed once or
+// twice since the account row was last written, and nothing more.
+const CORRUPT_ANCHOR_MIN_GAP = 10;
+const CORRUPT_ANCHOR_TOLERANCE = 2;
+
+// How long after a view task was served an unchanged play counter is still read as "the
+// scraper has not refreshed yet" rather than "the video was not watched". Thirty minutes
+// covers the realistic open-the-task / watch / come-back interval with room to spare, and
+// the counter on a watched video observed on this deployment caught up within three.
+const VIEW_LAG_GRACE_MS = 30 * 60 * 1000;
+
+/**
+ * True when a `like_counts` row was written recently enough that its unchanged value is
+ * still ambiguous (see VIEW_LAG_GRACE_MS).
+ *
+ * The timestamp is the row's `updatedAt`, which moves both when the snapshot is created
+ * and when a credit lands, so it always means "the last time this baseline was current".
+ * A row without usable timestamps is treated as old: the safe answer is the plain refusal,
+ * because a missing timestamp must never be able to manufacture a retry loop.
+ */
+function snapshotIsRecent(row) {
+  const at = row?.updatedAt ?? row?.createdAt;
+  const ms = at instanceof Date ? at.getTime() : Date.parse(at ?? '');
+  return Number.isFinite(ms) && Date.now() - ms <= VIEW_LAG_GRACE_MS;
+}
 
 /**
  * The provider profile for an Account row, on the platform that row belongs to.
@@ -66,9 +100,26 @@ function profileFor(account) {
  * @param {number} p.userId
  * @param {object} p.body   the validated /coins/check payload
  * @returns {Promise<{is_success:boolean, coins_earned:number, already:boolean,
- *   need_relogin:boolean, is_unavailable:boolean}>}
+ *   need_relogin:boolean, is_unavailable:boolean, retryable:boolean, message?:string}>}
+ *
+ *   `retryable` is true when the provider could not be reached, so nothing was proven.
+ *   The order is left in progress and the client should invite another attempt rather
+ *   than telling the user they failed to perform the action.
+ *
+ * @param {function} [p.profileResolver] test seam: replaces the network lookup with a
+ *   supplied profile. Defaults to the real provider, so production is unaffected. The
+ *   follow verifier refuses the offline stub (its counts are a hash), which left the
+ *   parity suite unable to exercise the credit path at all without spending live
+ *   requests on a handle that does not exist upstream.
+ * @param {function} [p.postResolver] the same seam for the post lookup used by
+ *   like / share / comment / view.
  */
-export async function handleCheck({ userId, body }) {
+export async function handleCheck({
+  userId,
+  body,
+  profileResolver = profileFor,
+  postResolver = getPlatformPost,
+}) {
   const orderId = Number(body.order_id);
 
   const account = await resolveAccount(body);
@@ -112,8 +163,8 @@ export async function handleCheck({ userId, body }) {
     const action = actionOfOrder(order);
 
     const result = isPostAction(action)
-      ? await verifyPostAction({ order, account, action })
-      : await verifyFollow({ order, account, body });
+      ? await verifyPostAction({ order, account, action, postResolver })
+      : await verifyFollow({ order, account, body, profileResolver });
 
     if (result.credited) {
       const coins = await credit({
@@ -123,6 +174,15 @@ export async function handleCheck({ userId, body }) {
         type: taskHistoryType(action),
         action,
       });
+
+      // The authoritative balance, read after the credit.
+      //
+      // The client used to do `coinsBalance += coins_earned` locally. That is a guess: it
+      // is wrong the moment anything else touches the balance — an unfollow clawback, a
+      // bonus, a second device — and it leaves the user looking at a number the ledger does
+      // not agree with ("it said coins added, but my balance did not change"). Returning the
+      // real figure lets the app display what the database actually holds.
+      const freshUser = await db.user.findOne({ where: { id: userId }, select: { coins: true } });
 
       // Laravel runs these after crediting, outside the coin transaction. They
       // only touch the Account row; a failure must not undo the payout, so they
@@ -138,9 +198,26 @@ export async function handleCheck({ userId, body }) {
       return {
         is_success: true,
         coins_earned: coins,
+        // Server truth; the client assigns this instead of adding `coins_earned` locally.
+        coins_balance: freshUser?.coins ?? null,
         already: false,
         need_relogin: false,
         is_unavailable: false,
+      };
+    }
+
+    if (result.retryable) {
+      // The provider could not be reached, so nothing at all was proven — neither that the
+      // action was performed nor that it was not. Return immediately, without burning the
+      // remaining attempts (a retry would hit the same outage) and, crucially, without
+      // touching the order: cancelling here would destroy a task the user may well have
+      // completed. `retryable` is what tells the client to offer another attempt instead
+      // of the "please complete the action" message.
+      return {
+        ...failure({ already: false }),
+        is_unavailable: true,
+        retryable: true,
+        message: result.message,
       };
     }
 
@@ -172,7 +249,7 @@ export async function handleCheck({ userId, body }) {
  * Every refusal below is a *soft* failure (`credited: false`) except a missing snapshot,
  * which is a hard error: the feed never served this task, so retrying cannot help.
  */
-async function verifyPostAction({ order, account, action }) {
+async function verifyPostAction({ order, account, action, postResolver = getPlatformPost }) {
   const metric = metricFor(action);
   if (!order.postPk || order.status !== OrderStatus.Progress) {
     throw err.unknown('Order is not in progress.');
@@ -188,10 +265,24 @@ async function verifyPostAction({ order, account, action }) {
   const platform = normalizePlatform(
     order.account?.platform ?? account?.platform ?? order.platform,
   );
-  const post = await getPlatformPost(platform, order.url);
+  const post = await postResolver(platform, order.url);
 
   // --- v2 protocol: compare the live counter to the stored snapshot ---
   if (!post) {
+    // "The post is gone" and "we could not reach the provider" are different answers and
+    // only the first may cancel the order. Collapsing them meant a scraper outage silently
+    // cancelled a live order and the advertiser never got the likes they paid for. The
+    // platform provider records why the last lookup failed, so an outage is answered with
+    // "try again" and the order is left untouched.
+    if (platformProviderUnavailable(platform)) {
+      return {
+        credited: false,
+        retryable: true,
+        message:
+          `${PLATFORM_LABELS[platform]} is temporarily unavailable, so we could not read the ` +
+          `post. Your task is saved — tap Check again in a few minutes.`,
+      };
+    }
     return {
       credited: false,
       unavailable: true,
@@ -216,12 +307,20 @@ async function verifyPostAction({ order, account, action }) {
     return { credited: false };
   }
 
-  // Rows written before `metric` existed carry null and mean "like", so the like lookup has
-  // to accept them or every existing baseline would be invisible.
+  // Rows written before this column existed carry null and mean "like", so the like lookup
+  // has to accept them or every existing baseline would be invisible.
+  //
+  // The stored value is the **action** name (`POST /posts/url` writes `metric: action`),
+  // not the provider's field name. Looking it up with `metricFor(action)` compared a row
+  // labelled 'view' against 'playCount', so the lookup found nothing and the check died
+  // with "Previous count not found" — for every share, comment and view task. That is why
+  // no ShareTask, CommentTask or ViewTask row has ever been written: those tasks could not
+  // be verified at all, not merely slowly. `metricFor` stays where it belongs, in
+  // `metricValue`, which reads the provider's object rather than this collection.
   const metricWhere =
     action === ActionType.Like
       ? { metric: { in: [ActionType.Like, null] } }
-      : { metric };
+      : { metric: action };
 
   const row = await db.likesCount.findOne({
     where: { orderId: order.id, ...metricWhere, ...accountMatch('LikesCount', account) },
@@ -236,6 +335,27 @@ async function verifyPostAction({ order, account, action }) {
   const previous = row.lastCount ?? 0;
 
   if (latest <= previous) {
+    // A view is proven by the post's *global* play counter, and the scraper serves that
+    // number out of a cache. A read taken right after the view therefore returns the
+    // pre-view figure, and the new count only turns up a little later. Measured on this
+    // deployment: 1346 at the moment the user tapped Check, 1349 three minutes later, for
+    // a video that had in fact been watched. Comparing 1346 to a 1346 snapshot refused
+    // the task and the client then threw it away — the user watched the video and was told
+    // they had not.
+    //
+    // An unchanged counter on a view is therefore ambiguous while the snapshot is recent.
+    // Report that as retryable, which keeps the task and asks for another check, instead of
+    // asserting the action did not happen. Once the window has passed the number is stale
+    // for a different reason and the plain refusal is the honest answer.
+    if (action === ActionType.View && snapshotIsRecent(row)) {
+      return {
+        credited: false,
+        retryable: true,
+        message:
+          `${PLATFORM_LABELS[platform]} has not published the new view count yet, so we ` +
+          `cannot confirm it this second. Your task is saved — tap Check again in a minute.`,
+      };
+    }
     // No new action detected.
     return { credited: false };
   }
@@ -252,7 +372,7 @@ async function verifyPostAction({ order, account, action }) {
 // Follow verification
 // ---------------------------------------------------------------------------
 
-async function verifyFollow({ order, account, body }) {
+async function verifyFollow({ order, account, body, profileResolver = profileFor }) {
   // The viewer's own following counter is the ONLY source of truth.
   //
   // An earlier build (a faithful port of the Laravel "confirmed follow protocol")
@@ -273,7 +393,7 @@ async function verifyFollow({ order, account, body }) {
   const previous = anchor?.followingCount ?? 0;
 
   // Live count for the viewer account, on the viewer's own platform.
-  const profile = await profileFor(account);
+  const profile = await profileResolver(account);
 
   // The offline stub is NOT evidence that a follow happened.
   //
@@ -295,14 +415,61 @@ async function verifyFollow({ order, account, body }) {
   // as "the count did not go up", so a single flaky provider silently denied a
   // payout the user had genuinely earned. Bail out instead and let the client retry.
   if (!profile || profile.followingCount === undefined || profile.followingCount === null) {
+    // ...and when the reason is an outage, say so — do not fall through to the generic
+    // "could not verify, please do the action" the client shows for a soft refusal.
+    //
+    // A soft refusal means "we read your account and the counter did not move", i.e. the
+    // user really has not followed yet. An outage means we could not read the account at
+    // all. Telling a user who *did* follow to go and follow again is both wrong and, when
+    // the client then drops the pending task, unrecoverable: their follow counts for
+    // nothing and the task can never be claimed. The platform provider records why the
+    // last lookup failed, so this branch can tell the two apart and answer "try again".
+    const viewerPlatform = normalizePlatform(account.platform);
+    if (!profile && platformProviderUnavailable(viewerPlatform)) {
+      return {
+        credited: false,
+        retryable: true,
+        message:
+          `${PLATFORM_LABELS[viewerPlatform]} is temporarily unavailable, so we could not ` +
+          `read your account. Your task is saved — tap Check again in a few minutes.`,
+      };
+    }
     return { credited: false };
   }
 
   const current = profile.followingCount;
 
+  // A polluted anchor must not swallow a real follow.
+  //
+  // Rows written while the deployment had no scraping key hold the stub's hash-derived
+  // count (`100 + seed % 400`). A live example: `@fahim1000011` really follows 5 people,
+  // its anchor said 473. A viewer there followed one account — 5 -> 6 — and the check read
+  // 473 -> 6 as a 467-person UNFOLLOW, re-anchored to 6 and refused to pay. The follow that
+  // produced the 6 was then unrecoverable, because the anchor had already been moved onto
+  // it. "Could not verify" for an action the user really performed.
+  //
+  // The Account row is an independent witness: `following` is the last count we actually
+  // stored for this viewer (written at login and after every credit). When the anchor sits
+  // far above the live count while the account row agrees with the live count, the anchor
+  // is the one that is wrong, so the account row becomes the baseline.
+  //
+  // Both guards must hold, which keeps a real unfollow intact: someone who drops from 400
+  // to 390 also has 390 in the account row, so `Math.abs(accountFollowing - current)` is 0
+  // and the tolerance below would match — but their anchor is only 10 above, not far above,
+  // and a genuine mass unfollow would leave the account row at the old value, not the new.
+  const accountFollowing = Number(account.following);
+  const hasAccountFollowing = Number.isFinite(accountFollowing) && accountFollowing >= 0;
+  const anchorLooksCorrupt =
+    !!anchor &&
+    hasAccountFollowing &&
+    previous - current >= CORRUPT_ANCHOR_MIN_GAP &&
+    Math.abs(accountFollowing - current) <= CORRUPT_ANCHOR_TOLERANCE;
+
+  const baseline = anchorLooksCorrupt ? accountFollowing : previous;
+
   const orderPlatform = normalizePlatform(order.platform ?? account.platform);
 
-  if (previous >= current) {
+  if (baseline >= current) {
     // The order owner may have deleted or privatised their account. Laravel only
     // cancels when a provider *successfully reported* the profile as unavailable
     // or secret — a total outage must not cancel anything, because it says nothing
@@ -319,7 +486,7 @@ async function verifyFollow({ order, account, body }) {
       : await db.account.findOne({
           where: { username: String(order.username).toLowerCase(), platform: orderPlatform },
         });
-    const ownerProfile = await profileFor(ownerAccount);
+    const ownerProfile = await profileResolver(ownerAccount);
     if (ownerProfile && (ownerProfile.secret || ownerProfile.privateAccount)) {
       return {
         credited: false,
@@ -332,7 +499,11 @@ async function verifyFollow({ order, account, body }) {
     // The count went DOWN, i.e. the user unfollowed someone. Re-anchor the
     // baseline, otherwise it stays permanently out of reach and every later
     // follow is silently rejected.
-    if (anchor && current < previous) {
+    //
+    // Compared against `baseline`, not the raw anchor: when the anchor was identified as
+    // corrupt above, the correct repair is to move it to the live count rather than leave
+    // the poison in place for the next check.
+    if (anchor && current < baseline) {
       await db.followCount.update({
         where: { id: anchor.id },
         data: { followingCount: current },

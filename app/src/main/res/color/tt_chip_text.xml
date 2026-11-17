@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Action-chip label colour, so the selected chip also lights up its text — the border
+  alone is easy to miss at 11.5sp on a phone in daylight.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:color="@color/tt_teal" />
+    <item android:color="@color/tt_text_secondary" />
+</selector>

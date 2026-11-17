@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Secondary action on the task card ("Skip").
+
+  Flat #222222 on the #111111 page — the reference draws it as a plain grey block with
+  no border. The old pill used a navy gradient plus an indigo hairline, which on a black
+  surface read as a disabled control rather than a tappable one.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="10dp" />
+    <solid android:color="@color/tk_surface" />
+</shape>

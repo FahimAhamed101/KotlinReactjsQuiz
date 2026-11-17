@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legibility scrim behind the handle on a like task's video still.
+
+  The still is a photograph of arbitrary brightness, and the handle and follower count are
+  drawn straight on top of it — without this they disappear over a pale frame. Fades from
+  fully transparent at the top to a dark base at the bottom, and rounds its bottom corners
+  to match the 14dp preview card so it cannot paint outside the card outline.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- 270 = top-to-bottom: transparent at the top, dark at the base. -->
+    <gradient
+        android:angle="270"
+        android:endColor="#E6000000"
+        android:startColor="#00000000" />
+    <corners
+        android:bottomLeftRadius="14dp"
+        android:bottomRightRadius="14dp" />
+</shape>

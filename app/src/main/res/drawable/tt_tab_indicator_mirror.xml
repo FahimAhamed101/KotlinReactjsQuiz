@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The underline for the *right-hand* Store tab.
+
+  tt_tab_indicator runs blue -> pink, which is what the reference shows under Profile.
+  Under Video the same bar is mirrored (pink -> blue), so this is that gradient reversed
+  rather than a third colour pair — the two tabs then share one palette.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:startColor="#FF0B59"
+        android:endColor="#00A3FF"
+        android:type="linear" />
+    <corners android:radius="2dp" />
+</shape>

@@ -1,0 +1,53 @@
+# The Vercel project's Root Directory is `socialboostapi`, but the CLI must be run from
+# the repository root. Running it from `socialboostapi/` uploads that folder's *contents*
+# as the project root, and the build then fails with
+# "The specified Root Directory \"socialboostapi\" does not exist".
+#
+# Because the CLI uploads the repository root, everything below would otherwise be sent on
+# every deploy even though the build never looks at it. That is what made a plain
+# `vercel --prod` fail on upload size: the tree is ~2 GB, of which `ttboost/` (the Laravel
+# reference backend), `detech/`, `rea/` and the Gradle caches are all irrelevant.
+#
+# ANCHORING IS NOT COSMETIC. Every entry here is prefixed with `/`, which in
+# .vercelignore/gitignore syntax means "at the upload root only". An unanchored `app/`
+# matches at ANY depth — and `socialboostapi/app/` is the Next.js App Router directory, so
+# it would strip every API route from the deployment. That is precisely what happened on
+# the first attempt: the build succeeded, the alias moved, and then /api/v6/orders and even
+# /api/server-time returned 404, because the routes were not in the uploaded tree at all.
+# Keep the leading slashes.
+
+# --- other projects in this tree -------------------------------------------------------
+/ttboost/
+/detech/
+/rea/
+/buycodeprobackend/
+/_apkwork/
+/_apkwork-*/
+/_refapp/
+/_tools/
+
+# --- the Android client (built with Gradle, not Vercel) --------------------------------
+# `/app` is the Kotlin module. `socialboostapi/app` is NOT ignored — see the note above.
+/app/
+/gradle/
+/gradlew
+/gradlew.bat
+/build/
+/.gradle/
+/.kotlin/
+/.idea/
+/local.properties
+
+# --- git + tooling metadata ------------------------------------------------------------
+/.git/
+/.vercel/
+/.workbuddy-ai/
+
+# --- scratch captures and logs (root only, so nothing under socialboostapi/) -----------
+/*.png
+/*.jpg
+/*.jpeg
+/*.log
+/hs_err_pid*.log
+/replay_pid*.log
+/ui_dump.xml

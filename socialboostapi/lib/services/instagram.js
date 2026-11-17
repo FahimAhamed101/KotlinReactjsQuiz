@@ -34,7 +34,7 @@ import { Platform } from './platforms';
 
 /** True when an Instagram scraping provider is configured. */
 export function hasLiveProvider() {
-  return instagramHost() !== null && instagramKey().length > 0;
+  return instagramHost() !== null && instagramKeys().length > 0;
 }
 
 function instagramHost() {
@@ -42,8 +42,55 @@ function instagramHost() {
   return host ? host.replace(/^https?:\/\//i, '').replace(/\/+$/, '') : null;
 }
 
-function instagramKey() {
-  return (process.env.INSTAGRAM_RAPID_KEY || process.env.RAPID_API_KEY || '').trim();
+/**
+ * Every configured Instagram key, in the order they should be tried.
+ *
+ * A RapidAPI allowance belongs to a *subscription*, not to the account, so one API can
+ * run out of its monthly requests while everything else on the same key is fine. That is
+ * exactly what happened here: the Instagram subscription hit its monthly cap and the
+ * whole Instagram sign-in and verification path stopped, even though the same key was
+ * still happily serving Facebook. A second subscription on a second key is the cheapest
+ * way to stay up, so more than one key may be configured:
+ *
+ *   INSTAGRAM_RAPID_KEY    tried first (the original variable — nothing changes for a
+ *                          deployment that only sets this one)
+ *   INSTAGRAM_RAPID_KEYS   optional extra keys, comma-separated, tried in order
+ *
+ * RAPID_API_KEY is a last resort, kept for an operator who sets only that. It is the
+ * TikTok key and generally is *not* subscribed to Instagram, so it is used only when no
+ * Instagram-specific key exists at all.
+ */
+function instagramKeys() {
+  const raw = [process.env.INSTAGRAM_RAPID_KEY, process.env.INSTAGRAM_RAPID_KEYS]
+    .filter(Boolean)
+    .join(',');
+  const keys = raw
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const unique = [...new Set(keys)];
+  if (unique.length) return unique;
+  const lastResort = (process.env.RAPID_API_KEY || '').trim();
+  return lastResort ? [lastResort] : [];
+}
+
+/**
+ * The key most likely to answer, first.
+ *
+ * A key that has run out of quota returns 429 for the rest of the month, so leaving it at
+ * the front means paying a wasted round trip before every lookup reaches the working key
+ * — and the verification path is already close to the client's timeout. Remembering the
+ * last key that answered puts it first for the remaining life of the instance; a cold
+ * start merely pays one extra request.
+ */
+let lastGoodKey = null;
+
+function orderedKeys() {
+  const keys = instagramKeys();
+  if (!lastGoodKey) return keys;
+  const i = keys.indexOf(lastGoodKey);
+  if (i <= 0) return keys;
+  return [keys[i], ...keys.slice(0, i), ...keys.slice(i + 1)];
 }
 
 /**
@@ -61,12 +108,46 @@ function candidatePaths() {
   return paths;
 }
 
+// ---------------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------------
+//
+// [getProfileInfo] answers `null` for two situations that are not the same thing:
+//
+//   * "this handle does not exist" — the user typed it wrong, and saying so is correct;
+//   * "the scraper could not answer" — a 429 from an exhausted monthly quota, a 403 for
+//     a key that is not subscribed, a 5xx, or a network timeout.
+//
+// Collapsing them cost real users: once the RapidAPI plan ran out of requests, *every*
+// Instagram handle failed, and `register` relayed that to the user as
+// "username: @x is invalid" (Laravel's wording for a genuinely unknown handle). A user
+// with a perfectly good account was told their own username was wrong, and nobody could
+// sign up on Instagram or Facebook until the quota was noticed by hand.
+//
+// So the module records *how* the last lookup failed. Callers that would otherwise
+// report a definitive negative consult [providerUnavailable] first and answer
+// "try again shortly" instead of blaming the handle.
+let lastUnavailable = false;
+
 /**
- * Call one RapidAPI endpoint.
+ * True when the most recent [getProfileInfo] failed because the provider could not be
+ * reached or refused to serve us — as opposed to answering "no such user".
+ */
+export function providerUnavailable() {
+  return lastUnavailable;
+}
+
+/**
+ * Call one RapidAPI endpoint, trying each configured key until one answers.
  *
- * Returns the parsed JSON, or null when the endpoint does not exist, the key is not
- * subscribed, or the request failed. The three cases are deliberately collapsed:
- * from the caller's point of view they all mean "try the next candidate".
+ * Returns the parsed JSON, or null when the endpoint does not exist or every key refused.
+ * The caller reads both as "try the next candidate path".
+ *
+ * Key rotation is the point of this function. 429 (this subscription is out of monthly
+ * requests) and 403 (this key is not subscribed to this API) describe ONE key, so they
+ * move on to the next rather than failing the lookup — that is what keeps a single
+ * drained subscription from taking Instagram down. Anything that says nothing about the
+ * handle also raises the module's availability flag — see [providerUnavailable].
  */
 async function rapidGet(host, path, params) {
   const url = new URL(`https://${host}${path}`);
@@ -74,26 +155,52 @@ async function rapidGet(host, path, params) {
     if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, String(v));
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'X-RapidAPI-Key': instagramKey(),
-        'X-RapidAPI-Host': host,
-      },
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const text = await res.text();
-    if (!text) return null;
-    return JSON.parse(text);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+  let allRefused = false;
+
+  for (const key of orderedKeys()) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'X-RapidAPI-Key': key,
+          'X-RapidAPI-Host': host,
+        },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+
+      if (res.status === 429 || res.status === 403) {
+        // Out of requests, or not subscribed to this API. Another key may be perfectly
+        // healthy, so keep going instead of giving up on the lookup.
+        allRefused = true;
+        continue;
+      }
+
+      if (!res.ok) {
+        // A 404 only means this *candidate path* is not the one the configured scraper
+        // exposes — nothing about the handle, nothing about the key. A 5xx is the scraper
+        // itself being broken, which a different key would not fix.
+        if (res.status >= 500) lastUnavailable = true;
+        return null;
+      }
+
+      const text = await res.text();
+      if (!text) return null;
+      const json = JSON.parse(text);
+      lastGoodKey = key;
+      return json;
+    } catch {
+      // Aborted by the timeout, DNS failure, TLS failure — no answer at all.
+      lastUnavailable = true;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  // Every key was refused. Callers must not read that as "no such account".
+  if (allRefused) lastUnavailable = true;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,8 +315,12 @@ export async function getProfileInfo(username) {
   const handle = String(username || '').trim().replace(/^@/, '').toLowerCase();
   if (!handle) return null;
 
+  // Cleared up front so the flag always describes THIS call: a failure two requests ago
+  // must not make a later "no such user" look like an outage.
+  lastUnavailable = false;
+
   const host = instagramHost();
-  if (!host || !instagramKey()) return null;
+  if (!host || instagramKeys().length === 0) return null;
 
   for (const path of candidatePaths()) {
     const json = await rapidGet(host, path, { username: handle });
@@ -289,7 +400,7 @@ function extractCountOrNull(obj, ...keys) {
 export async function getPostInfo(url) {
   const target = absolutePostUrl(url);
   const host = instagramHost();
-  if (!target || !host || !instagramKey()) return null;
+  if (!target || !host || instagramKeys().length === 0) return null;
 
   const path = (process.env.INSTAGRAM_POST_PATH || '').trim() || '/post';
   const json = await rapidGet(host, path, { url: target });
@@ -317,6 +428,15 @@ export async function getPostInfo(url) {
     shareCount: null,
     playCount: extractCountOrNull(json, 'video_view_count', 'video_play_count', 'view_count'),
     cover: firstString(json.display_url, json.thumbnail_src, json.media_preview),
+    // For the order preview — see the same block in tiktok.js.
+    author: firstString(json.owner?.username, json.username),
+    nickname: firstString(json.owner?.full_name, json.full_name),
+    avatar: firstString(json.owner?.profile_pic_url, json.owner?.profile_pic_url_hd),
+    desc: firstString(
+      json.edge_media_to_caption?.edges?.[0]?.node?.text,
+      json.caption,
+      json.title,
+    ),
   };
 }
 

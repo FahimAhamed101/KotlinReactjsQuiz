@@ -7,7 +7,6 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.Fahim101.tomquiz.R
-import com.Fahim101.tomquiz.utils.Avatars
 import com.Fahim101.tomquiz.utils.SocialBoostApi
 
 /**
@@ -23,7 +22,7 @@ class QueuedTaskAdapter(
 ) : RecyclerView.Adapter<QueuedTaskAdapter.QueuedTaskViewHolder>() {
 
     class QueuedTaskViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val ivAvatar: ImageView = view.findViewById(R.id.iv_other_task_avatar)
+        val ivGlyph: ImageView = view.findViewById(R.id.iv_other_task_glyph)
         val tvHandle: TextView = view.findViewById(R.id.tv_other_task_handle)
         val tvAction: TextView = view.findViewById(R.id.tv_other_task_action)
         val tvReward: TextView = view.findViewById(R.id.tv_other_task_reward)
@@ -40,21 +39,34 @@ class QueuedTaskAdapter(
     override fun onBindViewHolder(holder: QueuedTaskViewHolder, position: Int) {
         val item = items[position]
 
+        // "Like" not "Likes": the row describes the single action this task asks for. The label
+        // comes from the row's actionType, not from `isLikes` — that boolean only says "this
+        // task is anchored to a post", which is equally true of share, comment and view
+        // tasks, so a views task used to be queued as "Like".
+        holder.tvAction.text = item.actionLabel
         holder.tvHandle.text = "@${item.username}"
-        // "Like" not "Likes": the row describes the single action this task asks for.
-        holder.tvAction.text = if (item.isLikes) "Like" else "Follow"
-        holder.tvReward.text = "+${item.rewardCoins}"
+        // Just the figure. The coin mark beside it already says what the number is, and the
+        // "+" it used to carry read as a running total rather than a one-off payout.
+        holder.tvReward.text = item.rewardCoins.toString()
 
-        Avatars.load(
-            holder.ivAvatar,
-            Avatars.candidates(item.username, item.platform, item.imageUrl),
-            item.username
-        )
+        // The row shows the *action*, not the account's picture. Seven avatars stacked read
+        // as one grey block that competes with the live card above; an action glyph tells you
+        // at a glance what each queued task will ask for.
+        holder.ivGlyph.setImageResource(glyphFor(item.action))
     }
 
     fun submit(newItems: List<SocialBoostApi.TaskItem>) {
         items.clear()
         items.addAll(newItems)
         notifyDataSetChanged()
+    }
+
+    /** One glyph per action, so a views row does not wear the like heart. */
+    private fun glyphFor(action: String): Int = when (action) {
+        "like" -> R.drawable.ic_tk_heart
+        "view" -> R.drawable.ic_eye
+        "share" -> R.drawable.ic_share
+        "comment" -> R.drawable.ic_chat
+        else -> R.drawable.ic_person_add
     }
 }

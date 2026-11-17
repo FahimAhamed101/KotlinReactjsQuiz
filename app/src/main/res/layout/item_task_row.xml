@@ -2,83 +2,89 @@
 <!--
   One queued task, as listed under "Other tasks" on the Tasks screen.
 
-  Read-only on purpose. The queue order and the skip accounting belong to the server,
-  so letting someone tap a row to jump ahead would silently desync the two — this list
-  exists so the next few tasks are visible, not to reorder them.
+  Read-only on purpose. The queue order and the skip accounting belong to the server, so
+  letting someone tap a row to jump ahead would silently desync the two — this list exists
+  so the next few tasks are visible, not to reorder them.
 
-  Compact and horizontal: it sits under the live task card and must not compete with it.
+  A flat row with a hairline under it, not a card: seven of these stack up, and seven
+  cards turn the section into a second page of chrome that competes with the live card
+  above it.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/tt_card_bg"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="12dp">
-
-    <com.google.android.material.imageview.ShapeableImageView
-        android:id="@+id/iv_other_task_avatar"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:background="@color/tt_surface_elevated"
-        android:contentDescription="@string/tt_other_task_avatar"
-        android:scaleType="centerCrop"
-        app:shapeAppearanceOverlay="@style/TTCircleImage" />
+    android:orientation="vertical">
 
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="11dp"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/tv_other_task_handle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@color/tt_text_primary"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            tools:text="@demo" />
-
-        <TextView
-            android:id="@+id/tv_other_task_action"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@color/tt_text_secondary"
-            android:textSize="11sp"
-            tools:text="Follow" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
+        <!--
+          The glyph names the action, the same visual shorthand the reference uses: a heart
+          for a like task, a person for a follow. Swapped per row in QueuedTaskAdapter.
+          Tinted here so both glyphs land on the same cyan — the heart already carries it,
+          the person mark does not.
+        -->
         <ImageView
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:contentDescription="Coins"
-            android:src="@drawable/ic_coin"
-            app:tint="@color/tt_gold" />
+            android:id="@+id/iv_other_task_glyph"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_tk_heart"
+            android:tint="@color/tk_cyan" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_other_task_action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/tk_text_secondary"
+                android:textSize="14sp"
+                tools:text="Like" />
+
+            <TextView
+                android:id="@+id/tv_other_task_handle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/tk_text_secondary"
+                android:textSize="14sp"
+                tools:text="@nethra078" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_other_task_reward"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="5dp"
-            android:textColor="@color/tt_gold"
-            android:textSize="13sp"
+            android:textColor="@color/tk_text"
+            android:textSize="15sp"
             android:textStyle="bold"
-            tools:text="+5" />
+            tools:text="2" />
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@string/coins_label"
+            android:src="@drawable/ic_coin"
+            android:tint="@color/tk_gold" />
     </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/tk_divider" />
 </LinearLayout>

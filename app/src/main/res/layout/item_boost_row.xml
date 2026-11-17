@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  One tier of one action — "+100 views", "3 coins per view", and the price pill.
+
+  The row used to be a bare "+200" and a pill: no action word, no unit price, no way to
+  compare the tiers against each other. That is fine for a single family with six fixed
+  packs and useless for five families with different shapes (Views has five coin tiers and
+  no card tiers at all). So each row now names the action it buys and says what one unit
+  costs, which is the only figure that can be compared across "+100 for 300" and
+  "+1000 for 3000".
+
+  Height is wrap_content rather than a fixed 60dp: the second line is the point of the row,
+  and clipping it to keep a magic number would defeat that.
+-->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="60dp"
+    android:layout_height="wrap_content"
     android:layout_marginTop="4.5dp"
     android:layout_marginBottom="4.5dp"
     app:cardBackgroundColor="@android:color/transparent"
@@ -13,93 +26,130 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:background="@drawable/bg_card_cosmic_gradient"
-        android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp">
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="11dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="11dp">
 
-        <!-- Left: Action Icon (Person or Heart) -->
+        <!-- The action's glyph, so a Views row does not wear a heart. -->
         <ImageView
             android:id="@+id/iv_boost_row_icon"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_person"
-            app:tint="@color/tt_accent"
-            android:contentDescription="Type" />
+            app:tint="@color/tt_accent" />
 
-        <!-- Count (e.g. +200, +400, +10) -->
-        <TextView
-            android:id="@+id/tv_boost_row_count"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            tools:text="+200"
-            android:textColor="@color/white"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <!-- Spacer pushing discount tag and button to the right -->
-        <View
-            android:id="@+id/view_boost_spacer"
+        <!-- Count and unit price, the two figures a buyer compares. -->
+        <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <!-- Discount Tag (e.g. 17% OFF) - bold white text with vibrant flame badge -->
+            <TextView
+                android:id="@+id/tv_boost_row_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:textColor="@color/white"
+                android:textSize="16.5sp"
+                android:textStyle="bold"
+                tools:text="+100 views" />
+
+            <TextView
+                android:id="@+id/tv_boost_row_meta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="10.5sp"
+                tools:text="3 coins per view" />
+        </LinearLayout>
+
+        <!-- Discount tag (e.g. 17% OFF) — only the card tiers carry one. -->
         <TextView
             android:id="@+id/tv_boost_row_discount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="8dp"
             android:background="@drawable/badge_discount_flame"
-            tools:text="17% OFF"
             android:textColor="@color/white"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:textStyle="bold"
-            android:visibility="gone" />
+            android:visibility="gone"
+            tools:text="17% OFF" />
 
-        <!-- Right: Cash Pill Button (Pink: $2.99) -->
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/btn_boost_cash_pill"
-            android:layout_width="86dp"
-            android:layout_height="36dp"
-            android:background="@drawable/tt_btn_pink_pill"
-            android:gravity="center"
-            android:textColor="@color/white"
-            android:textSize="13.5sp"
-            android:textStyle="bold"
-            android:stateListAnimator="@null"
-            tools:text="$2.99"
-            android:visibility="visible" />
-
-        <!-- Right: Coin Pill Layout (Blue: 100 ⭐) -->
+        <!-- The pill and, underneath it, what those coins are worth in money.
+             Views, Shares and Comments have no card SKU at all, so for them this caption is
+             the only price in currency the app can honestly show. -->
         <LinearLayout
-            android:id="@+id/layout_boost_coin_pill"
-            android:layout_width="86dp"
-            android:layout_height="36dp"
-            android:background="@drawable/tt_btn_blue_pill"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end|center_vertical"
+            android:orientation="vertical">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_boost_cash_pill"
+                android:layout_width="84dp"
+                android:layout_height="34dp"
+                android:background="@drawable/tt_btn_pink_pill"
+                android:gravity="center"
+                android:minWidth="0dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:stateListAnimator="@null"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="visible"
+                tools:text="$2.99" />
+
+            <LinearLayout
+                android:id="@+id/layout_boost_coin_pill"
+                android:layout_width="84dp"
+                android:layout_height="34dp"
+                android:background="@drawable/tt_btn_blue_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tv_boost_coin_amount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    tools:text="300" />
+
+                <ImageView
+                    android:layout_width="15dp"
+                    android:layout_height="15dp"
+                    android:layout_marginStart="4dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_star_coin" />
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/tv_boost_coin_amount"
+                android:id="@+id/tv_boost_row_usd"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                tools:text="100"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:layout_marginStart="5dp"
-                android:src="@drawable/ic_star_coin"
-                android:contentDescription="Star coin" />
+                android:layout_marginTop="3dp"
+                android:maxLines="1"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="10.5sp"
+                android:visibility="gone"
+                tools:text="≈ $0.30"
+                tools:visibility="visible" />
         </LinearLayout>
 
     </LinearLayout>

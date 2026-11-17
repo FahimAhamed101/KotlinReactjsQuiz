@@ -52,6 +52,9 @@
     <string name="tt_searching_task">We are searching for a task</string>
     <string name="tt_next_task_follow">Follow @%1$s to earn</string>
     <string name="tt_next_task_like">Like a post by @%1$s to earn</string>
+    <string name="tt_next_task_share">Share a post by @%1$s to earn</string>
+    <string name="tt_next_task_comment">Comment on a post by @%1$s to earn</string>
+    <string name="tt_next_task_view">View a post by @%1$s to earn</string>
     <string name="tt_other_tasks">Other tasks</string>
     <string name="tt_other_tasks_empty">No other tasks in the queue right now.</string>
     <string name="tt_other_task_avatar">Queued task account avatar</string>
@@ -203,17 +206,83 @@
     <string name="tt_preview_not_me">Not me</string>
     <string name="tt_preview_no_key">This server has no TikTok API key, so it sent a placeholder picture and invented follower counts. Add RAPID_API_KEY to see the real profile.</string>
 
-    <!-- ===================== New order: order-type grid ===================== -->
+    <!-- ===================== Store: Profile / Video tabs =====================
+         The Store is a two-tab selector, as in the reference: Profile buys followers,
+         Video buys likes on one post. It replaced the five-tile order-type grid — the
+         grid exposed every type the backend knows about, which is what made the screen
+         read as a wall of options instead of a shop. -->
+    <string name="tt_store_tab_profile">Profile</string>
+    <string name="tt_store_tab_video">Video</string>
+
+    <!-- Kept: the grid's heading and its "Soon" badge are no longer rendered, but the
+         badge string is still the fallback for an unavailable type. -->
     <string name="tt_new_order_title">What do you want\nto order?</string>
     <string name="tt_order_type_soon">Soon</string>
     <string name="tt_order_type_unavailable_title">%1$s orders aren\'t available yet</string>
     <string name="tt_order_type_unavailable_body">Only Followers and Likes can be delivered by this server. A %1$s order has no provider behind it, so it would take your coins without ever arriving.\n\nNothing has been charged.</string>
+
+    <!-- Action chips on the Video tab. These name the *action* a package delivers; the
+         server prices each family separately (Followers / Likes / Views / Shares /
+         Comments), so picking one here is what decides which catalogue is shown. -->
+    <string name="tt_order_action_likes">Likes</string>
+    <string name="tt_order_action_views">Views</string>
+    <string name="tt_order_action_shares">Shares</string>
+    <string name="tt_order_action_comments">Comments</string>
+    <!-- Shown instead of another action's packages when this family has none on sale. -->
+    <string name="tt_boost_empty_for_type">No %1$s packages are on sale right now.</string>
+
+    <!-- One line under the chips: what the action is, so a buyer knows what the task asks
+         and what "a view" or "a share" means before paying for it. Kept concrete — a vague
+         description is how someone buys 100 views, watches half a video, and gets refused. -->
+    <string name="tt_order_action_what_likes">A like is one tap on the heart.</string>
+    <string name="tt_order_action_what_views">A view counts once the video has played — TikTok can take a minute to show it.</string>
+    <string name="tt_order_action_what_shares">The share count must go up, so send it to a real chat.</string>
+    <string name="tt_order_action_what_comments">Post a real comment under the video.</string>
+    <string name="tt_order_action_from_coins">\u0020From %1$s coins.</string>
+    <string name="tt_order_action_from_coins_usd">\u0020From %1$s coins (≈ %2$s).</string>
+    <string name="tt_order_action_from_cash">\u0020From %1$s.</string>
+    <string name="tt_order_action_from_both">\u0020From %1$s coins (≈ %2$s), or %3$s by card.</string>
+
+    <!-- The chosen video's provider does not report this counter, so the task could never be
+         verified. Offering it anyway is how a coin balance disappears with nothing to show. -->
+    <string name="tt_order_action_unsupported">%1$s can\'t be measured on this video, so it can\'t be ordered on it. Try another video.</string>
+    <string name="tt_order_action_switched">%1$s can\'t be measured on this video, so we switched to %2$s.</string>
+
+    <!-- Package list section headers. Coins and card payments are not comparable, so the
+         list names which is which instead of interleaving them. -->
+    <string name="tt_boost_section_coins">EARN WITH COINS</string>
+    <string name="tt_boost_section_coins_note">Coins are free — earn them on the Tasks tab.</string>
+    <string name="tt_boost_section_card">PAY WITH GOOGLE PLAY</string>
+    <string name="tt_boost_section_card_note">Charged to your Play account.</string>
+
+    <!-- Row meta line: the unit price, which is the only figure comparable across tiers. -->
+    <string name="tt_boost_meta_coins">%1$s coins per %2$s</string>
+    <string name="tt_boost_meta_cash">%1$s per %2$s</string>
+    <!-- What a coin price is worth in money, at the best rate the store sells coins at. Shown
+         under the coin pill because Views, Shares and Comments have no card SKU: the coins'
+         value is the only currency figure that can be stated for them without inventing one. -->
+    <string name="tt_boost_usd_approx">≈ %1$s</string>
+    <!-- How short the balance is. Separate from tt_boost_need_more, which the product card
+         renders with no argument and would print a literal %1$s if it carried one. -->
+    <string name="tt_boost_short_by">Need %1$s more coins</string>
 
     <!-- ===================== New order: choose the target ===================== -->
     <string name="tt_new_order_target_title">Paste a link or choose a video</string>
     <string name="tt_new_order_how_to_find">How to\nfind a link?</string>
     <string name="tt_new_order_link_hint">tiktok.com/videolink</string>
     <string name="tt_new_order_videos_title">Your videos</string>
+    <!-- Opens the full-screen "Choose a Video" grid (the reference's Video picker). -->
+    <string name="tt_choose_video">Choose a Video</string>
+    <!-- The resolved-video card on the order screen -->
+    <string name="tt_order_video_section">Selected video</string>
+    <string name="tt_order_video_change">Change video</string>
+    <string name="tt_order_video_remove">Remove this video</string>
+    <string name="tt_order_video_checking">Finding that video…</string>
+    <string name="tt_order_video_likes">%1$s likes</string>
+    <string name="tt_order_video_views">%1$s views</string>
+    <string name="tt_order_video_comments">%1$s comments</string>
+    <string name="tt_choose_video_from_list">Choose from my videos</string>
+    <string name="tt_choose_video_paste">Paste a video link</string>
     <string name="tt_new_order_no_videos">No videos could be listed for this account. Paste a link above instead.</string>
     <string name="tt_new_order_profile_target">Followers are added to your own profile @%1$s. Nothing to paste.</string>
     <string name="tt_new_order_pick_video_first">Choose the video you want %1$s on first.</string>
@@ -222,4 +291,28 @@
     <string name="tt_stat_following">Following</string>
     <string name="tt_stat_followers">Followers</string>
     <string name="tt_stat_likes">Likes</string>
+
+    <!-- ===================== Reference shell ===================== -->
+    <!-- The gold pill in the top bar. It is the shell's "go grow your account" shortcut:
+         tapping it opens the Store, which is the only place anything is bought. -->
+    <string name="tt_upgrade">Upgrade</string>
+    <string name="tt_nav_profile">Profile</string>
+
+    <!-- ===================== Profile: premium upsell ===================== -->
+    <!-- No placeholder: this is rendered straight from the layout with no argument, and
+         a `%1$s` left unformatted prints literally as "%1$s". -->
+    <string name="tt_promo_title">Try out SocialBoost</string>
+    <string name="tt_promo_sub">Premium features</string>
+    <string name="tt_promo_cta">Try it now</string>
+
+    <!-- ===================== Profile: balance and account actions ===================== -->
+    <string name="tt_your_balance">Your balance:</string>
+    <!-- Unit only: the number beside it is set from the live balance, and it is rendered
+         in the accent colour at a much larger size than this label. -->
+    <string name="tt_coins_unit">coins</string>
+    <string name="tt_deposit">Deposit</string>
+    <string name="tt_settings">Settings</string>
+    <string name="tt_restore_purchases">Restore purchases</string>
+    <!-- Content description for the video still on a like task card. -->
+    <string name="tt_task_video_cover">Video to like</string>
 </resources>

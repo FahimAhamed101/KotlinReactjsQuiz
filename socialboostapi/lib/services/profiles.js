@@ -29,9 +29,21 @@
 // placeholder; verification paths never may.
 
 import { Platform, normalizePlatform } from './platforms';
-import { getProfileInfo as getTikTokProfile, hasLiveProvider as hasTikTokProvider } from './tiktok.js';
-import { getProfileInfo as getInstagramProfile, hasLiveProvider as hasInstagramProvider } from './instagram.js';
-import { getProfileInfo as getFacebookProfile, hasLiveProvider as hasFacebookProvider } from './facebook.js';
+import {
+  getProfileInfo as getTikTokProfile,
+  hasLiveProvider as hasTikTokProvider,
+  providerUnavailable as tiktokUnavailable,
+} from './tiktok.js';
+import {
+  getProfileInfo as getInstagramProfile,
+  hasLiveProvider as hasInstagramProvider,
+  providerUnavailable as instagramUnavailable,
+} from './instagram.js';
+import {
+  getProfileInfo as getFacebookProfile,
+  hasLiveProvider as hasFacebookProvider,
+  providerUnavailable as facebookUnavailable,
+} from './facebook.js';
 
 /** True when this platform has a real provider configured. */
 export function hasLiveProvider(platform) {
@@ -42,6 +54,34 @@ export function hasLiveProvider(platform) {
       return hasFacebookProvider();
     default:
       return hasTikTokProvider();
+  }
+}
+
+/**
+ * True when the last [getProfileInfo] for this platform failed because the provider
+ * could not be reached or refused to serve us (out of quota, key not subscribed, 5xx,
+ * timeout) — as opposed to reaching it and finding no such account.
+ *
+ * Anything that turns a null profile into a *definitive* statement — "your username is
+ * invalid", "no such account" — must consult this first. During an outage those answers
+ * are not just unhelpful, they are wrong, and they lock users out of the whole network.
+ *
+ * TikTok answers with a stub (`isStub`) when no key is configured, which every
+ * verification path already tests for — but that is a *different* situation from an
+ * outage. With a key configured and the subscription drained, the TikTok provider returns
+ * null exactly like the other two, and without this flag that null was relayed to the user
+ * as "your username is invalid". Same defect, same fix, so TikTok is consulted here too.
+ */
+export function providerUnavailable(platform) {
+  switch (normalizePlatform(platform)) {
+    case Platform.Instagram:
+      return instagramUnavailable();
+    case Platform.Facebook:
+      return facebookUnavailable();
+    case Platform.TikTok:
+      return tiktokUnavailable();
+    default:
+      return false;
   }
 }
 

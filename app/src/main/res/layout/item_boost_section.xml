@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A pricing section header in the package list.
+
+  Two sections, because the Store takes two kinds of money and they are not comparable:
+  "Earn with coins" (coins are earned free on the Tasks tab) and "Pay with Google Play".
+  Interleaving them, as the single list used to, made the cheapest-looking row depend on
+  which currency you were reading.
+
+  A header is only emitted for a section that actually has rows — Views, Shares and
+  Comments are coin-only, so their lists never show the Play header at all.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="14dp"
+    android:layout_marginBottom="2dp"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/tv_boost_section_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:letterSpacing="0.06"
+        android:textColor="@color/white"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        tools:text="EARN WITH COINS" />
+
+    <TextView
+        android:id="@+id/tv_boost_section_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:lineSpacingExtra="1dp"
+        android:textColor="@color/tt_text_secondary"
+        android:textSize="10.5sp"
+        tools:text="Coins are free — earn them on the Tasks tab." />
+
+</LinearLayout>

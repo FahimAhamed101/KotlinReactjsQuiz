@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The small badge on the top-bar avatar, as in the reference chrome: a red disc with a
+  white cross, pinned to the avatar's bottom-end corner.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="17dp"
+    android:height="17dp"
+    android:viewportWidth="18"
+    android:viewportHeight="18">
+
+    <path
+        android:fillColor="#FF2D55"
+        android:pathData="M9,0a9,9 0 1,0 0,18a9,9 0 1,0 0,-18z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5.5,8h7v2h-7z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,5.5h2v7h-2z" />
+</vector>

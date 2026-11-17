@@ -7,17 +7,15 @@ import com.Fahim101.tomquiz.R
  * Likes, Shares, Comments, Followers, Views.
  *
  * [available] is the honest marker for "this backend can actually deliver it".
- * Only **Followers** and **Likes** have a delivery path. The Laravel spec (which is the
- * authority when it and the Node port disagree) stores a single `is_likes` boolean per
- * order and configures the SMM panel with exactly two service ids — `SmmLikeServiceId`
- * and `SmmFollowServiceId` — and our Mongo `Order` model mirrors that with `isLikes`.
- * There is nowhere in the stack for a shares / comments / views order to live.
  *
- * Those three tiles are still shown, because the reference app offers them and the grid
- * would look broken without them, but they carry a "Soon" badge and refuse to order.
- * Silently accepting one would take the user's coins for work nothing can perform —
- * the same failure class as the mock-purchase fallback removed in
- * `PURCHASE_FIX_REPORT.md`.
+ * All five are now deliverable. Followers is verified against the target profile's follower
+ * count; Likes, Shares, Comments and Views are all anchored to a single post and verified
+ * against that post's own counter (`digg_count` / `share_count` / `comment_count` /
+ * `play_count`), snapshotted before the task and compared after it.
+ *
+ * The server refuses to pay for an action whose counter its provider cannot read, so a
+ * network that does not expose (say) a share count makes that task uncompletable rather than
+ * free — which is why the "Soon" badge existed in the first place.
  */
 enum class OrderType(
     val label: String,
@@ -25,15 +23,31 @@ enum class OrderType(
     val available: Boolean,
     /** True when the type is anchored to one post rather than the whole profile. */
     val needsVideoTarget: Boolean,
+    /**
+     * The action word the API uses: like | view | share | comment | follow.
+     *
+     * Also the key in a post preview's `orderable` list. A network that does not report a
+     * counter cannot have that action verified, so the server refuses to pay for it — and
+     * the order screen must not offer it for that particular video.
+     */
+    val actionKey: String,
 ) {
-    LIKES("Likes", R.drawable.ic_heart, available = true, needsVideoTarget = true),
-    SHARES("Shares", R.drawable.ic_share, available = false, needsVideoTarget = true),
-    COMMENTS("Comments", R.drawable.ic_chat, available = false, needsVideoTarget = true),
-    FOLLOWERS("Followers", R.drawable.ic_person_add, available = true, needsVideoTarget = false),
-    VIEWS("Views", R.drawable.ic_eye, available = false, needsVideoTarget = true);
+    LIKES("Likes", R.drawable.ic_heart, available = true, needsVideoTarget = true, actionKey = "like"),
+    SHARES("Shares", R.drawable.ic_share, available = true, needsVideoTarget = true, actionKey = "share"),
+    COMMENTS("Comments", R.drawable.ic_chat, available = true, needsVideoTarget = true, actionKey = "comment"),
+    FOLLOWERS("Followers", R.drawable.ic_person_add, available = true, needsVideoTarget = false, actionKey = "follow"),
+    VIEWS("Views", R.drawable.ic_eye, available = true, needsVideoTarget = true, actionKey = "view");
 
     /** Followers orders target the profile itself; every other type targets one post. */
     val needsProfileTarget: Boolean get() = !needsVideoTarget
+
+    /** Singular noun for a single unit: "3 coins per view", "+100 views". */
+    val noun: String get() = actionKey
+
+    val pluralNoun: String get() = when (this) {
+        FOLLOWERS -> "followers"
+        else -> actionKey + "s"
+    }
 
     companion object {
         /** The type the screen opens on. Likes is first in the reference app's grid. */

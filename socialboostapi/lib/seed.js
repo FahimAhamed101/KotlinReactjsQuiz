@@ -160,7 +160,7 @@ export async function runSeed() {
   );
   // Followers Cash (6 products matching screenshots)
   const followersCash = [
-    { oldId: 'tt_follow_200', actionCount: 200, price: '$2.99', billingProductId: 'tt_follow_200', off: null },
+    { oldId: 'tt_follow_201', actionCount: 200, price: '$2.99', billingProductId: 'tt_follow_201', off: null },
     { oldId: 'tt_follow_400', actionCount: 400, price: '$4.99', billingProductId: 'tt_follow_400', off: 17 },
     { oldId: 'tt_follow_900', actionCount: 900, price: '$9.99', billingProductId: 'tt_follow_900', off: 26 },
     { oldId: 'tt_follow_2000', actionCount: 2000, price: '$19.99', billingProductId: 'tt_follow_2000', off: 33 },

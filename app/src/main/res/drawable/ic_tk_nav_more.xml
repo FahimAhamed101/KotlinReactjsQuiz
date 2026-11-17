@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bottom-nav icon: profile (a person inside a ring) — idle state. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@color/tk_cyan"
+        android:strokeWidth="1.6"
+        android:pathData="M2.5,12 A9.5,9.5 0 1,0 21.5,12 A9.5,9.5 0 1,0 2.5,12 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@color/tk_cyan"
+        android:strokeWidth="1.6"
+        android:pathData="M9.6,8.9 A2.4,2.4 0 1,0 14.4,8.9 A2.4,2.4 0 1,0 9.6,8.9 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@color/tk_cyan"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M7.1,17.3 C7.1,14.5 9.3,12.9 12.0,12.9 C14.7,12.9 16.9,14.5 16.9,17.3" />
+</vector>

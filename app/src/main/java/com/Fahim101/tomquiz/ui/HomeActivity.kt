@@ -56,6 +56,7 @@ import com.google.android.material.imageview.ShapeableImageView
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.NumberFormat
 
 class HomeActivity : AppCompatActivity() {
 
@@ -198,7 +199,10 @@ class HomeActivity : AppCompatActivity() {
      * Setting it here makes it independent of the OS version's behaviour.
      */
     private fun applyWindowBars() {
-        val barColor = ContextCompat.getColor(this, R.color.tt_top_bar)
+        // The system bars take the shell's background, not the old navy top-bar colour:
+        // everything above and below the content is now one flat #111111 surface, so a
+        // tinted bar read as a leftover stripe.
+        val barColor = ContextCompat.getColor(this, R.color.tk_bg)
         val window = this.window ?: return
 
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
@@ -343,9 +347,18 @@ class HomeActivity : AppCompatActivity() {
             markCodesPurchased(listOf(targetItem.id))
         }
 
-        coinsBalance += 100
-        updateCoinsDisplay()
-
+        // No coins are granted here, and the client must not invent any.
+        //
+        // Buying a source code — or activating the all-access pass — is a Google Play MONEY
+        // purchase. The coin economy in the Laravel spec only ever pays out for a verified
+        // like/follow task, a coin-pack purchase, a spin, the welcome/referral bonus and the
+        // daily reward; there is no server path that credits coins for a code purchase.
+        //
+        // This used to do `coinsBalance += 100`, which put 100 coins in the local cache that
+        // the server had never granted (and then persisted them to KEY_COINS). The balance
+        // therefore ran ahead of the real one, the affordability checks on Store and Tasks
+        // used the inflated figure, and the next /me refresh silently reverted it. Same bug
+        // class as the coin-pack path documented in SocialBoostApi.purchaseCoins.
         notifyBackendPurchase(targetItem.id, productId, purchaseToken, orderId)
 
         activeCheckoutForm?.visibility = View.GONE
@@ -579,6 +592,19 @@ class HomeActivity : AppCompatActivity() {
             refreshCoinsFromServer(silent = true)
             showBuyCoinsDialog()
         }
+
+        // The shell's top-left slot is the account's own picture now (it replaced the gold
+        // "Upgrade" pill). Tapping it opens the Profile tab, where the balance, the orders
+        // and the sign-out live.
+        findViewById<View>(R.id.layout_top_avatar)?.setOnClickListener { selectTab(3) }
+
+        // Profile screen: "Deposit" is this app's coin packs, and the premium banner leads
+        // to the Store. Both point at flows that already exist rather than at new ones.
+        findViewById<View>(R.id.btn_profile_deposit)?.setOnClickListener {
+            refreshCoinsFromServer(silent = true)
+            showBuyCoinsDialog()
+        }
+        findViewById<View>(R.id.card_profile_promo)?.setOnClickListener { selectTab(1) }
     }
 
     /**
@@ -613,7 +639,9 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun paintAvatar(handle: String?, platform: String, avatarUrl: String?) {
         val urls = Avatars.candidates(handle, platform, avatarUrl)
-        listOf(R.id.iv_top_avatar, R.id.iv_more_avatar).forEach { id ->
+        // Both rings show the same account: the large portrait on the Profile screen and
+        // the small round one in the shell's top bar.
+        listOf(R.id.iv_more_avatar, R.id.iv_top_avatar).forEach { id ->
             findViewById<ImageView>(id)?.let { Avatars.load(it, urls, handle) }
         }
     }
@@ -706,7 +734,10 @@ class HomeActivity : AppCompatActivity() {
 
         // Keep the Store's affordability flags in step with the balance.
         if (::boostAdapter.isInitialized) boostAdapter.refreshAffordability()
-        if (::tvMoreCoins.isInitialized) tvMoreCoins.text = "$coinsBalance coins"
+        // The profile screen prints the figure and its unit separately: the number is the
+        // large accent-coloured hero, "coins" is a small label beside it. So this is the
+        // bare number, not "4765 coins".
+        if (::tvMoreCoins.isInitialized) tvMoreCoins.text = coinsBalance.toString()
         tvBoostCoinsBadge?.text = "$coinsBalance coins available"
     }
 
@@ -719,39 +750,44 @@ class HomeActivity : AppCompatActivity() {
 
     /** Highlight the active bottom-nav item and flip to its screen. */
     private fun selectTab(index: Int) {
-        val activeColor = ContextCompat.getColor(this, R.color.tt_accent)
-        val idleColor = ContextCompat.getColor(this, R.color.tt_text_secondary)
+        val activeColor = ContextCompat.getColor(this, R.color.tk_cyan)
+        val idleColor = ContextCompat.getColor(this, R.color.tk_nav_idle)
 
-        val homeActive = index == 0
-        ivNavHome.setColorFilter(if (homeActive) activeColor else idleColor)
-        tvNavHome.setTextColor(if (homeActive) activeColor else idleColor)
-        tvNavHome.setTypeface(null, if (homeActive) Typeface.BOLD else Typeface.NORMAL)
+        // Icons are swapped, never tinted. The selected tab is the *filled* twin of its
+        // glyph, and a ColorFilter would flatten that fill back into an outline — which is
+        // exactly the cue the shell uses to mark the active tab.
+        fun paintNav(active: Boolean, icon: ImageView, label: TextView, on: Int, off: Int) {
+            icon.setImageResource(if (active) on else off)
+            // The labels are kept for the bindings but hidden: the bar is icon-only.
+            label.setTextColor(if (active) activeColor else idleColor)
+            label.setTypeface(null, if (active) Typeface.BOLD else Typeface.NORMAL)
+        }
 
-        val boostActive = index == 1
-        ivNavBoost.setColorFilter(if (boostActive) activeColor else idleColor)
-        tvNavBoost.setTextColor(if (boostActive) activeColor else idleColor)
-        tvNavBoost.setTypeface(null, if (boostActive) Typeface.BOLD else Typeface.NORMAL)
-
-        val codesActive = index == 2
-        ivNavCodes.setColorFilter(if (codesActive) activeColor else idleColor)
-        tvNavCodes.setTextColor(if (codesActive) activeColor else idleColor)
-        tvNavCodes.setTypeface(null, if (codesActive) Typeface.BOLD else Typeface.NORMAL)
-
-        val moreActive = index == 3
-        ivNavMore.setColorFilter(if (moreActive) activeColor else idleColor)
-        tvNavMore.setTextColor(if (moreActive) activeColor else idleColor)
-        tvNavMore.setTypeface(null, if (moreActive) Typeface.BOLD else Typeface.NORMAL)
+        paintNav(index == 0, ivNavHome, tvNavHome,
+            R.drawable.ic_tk_nav_tasks_on, R.drawable.ic_tk_nav_tasks)
+        paintNav(index == 1, ivNavBoost, tvNavBoost,
+            R.drawable.ic_tk_nav_store_on, R.drawable.ic_tk_nav_store)
+        paintNav(index == 2, ivNavCodes, tvNavCodes,
+            R.drawable.ic_tk_nav_codes_on, R.drawable.ic_tk_nav_codes)
+        paintNav(index == 3, ivNavMore, tvNavMore,
+            R.drawable.ic_tk_nav_more_on, R.drawable.ic_tk_nav_more)
 
         viewFlipper.displayedChild = index
 
-        if (index == 1) {
-            layoutTopWordmark?.visibility = View.GONE
-            tvTopScreenTitle?.visibility = View.VISIBLE
-            tvTopScreenTitle?.text = "Store"
-        } else {
-            layoutTopWordmark?.visibility = View.VISIBLE
-            tvTopScreenTitle?.visibility = View.GONE
+        // Every tab names itself in the top bar now, so the wordmark it used to fall back
+        // to is gone from the shell entirely.
+        layoutTopWordmark?.visibility = View.GONE
+        tvTopScreenTitle?.visibility = View.VISIBLE
+        tvTopScreenTitle?.text = when (index) {
+            1 -> getString(R.string.tt_nav_store)
+            2 -> "Codes"
+            3 -> getString(R.string.tt_nav_profile)
+            else -> getString(R.string.nav_tasks)
         }
+
+        // The top-left avatar is part of the shell chrome, so it stays on every tab. The
+        // Upgrade pill it replaced only appeared on Tasks and pointed at the Store, which
+        // the bottom navigation already does.
 
         // Returning Home with an exhausted queue should pull a fresh page.
         if (index == 0 && taskQueue.isEmpty() && currentTask == null) loadTasks()
@@ -779,6 +815,10 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var tvTaskUsername: TextView
     private lateinit var ivTaskAvatar: ImageView
+    /** The video's still on a like task; GONE on follow tasks. */
+    private lateinit var ivTaskCover: ImageView
+    /** Legibility scrim under the handle, shown only while the still is on screen. */
+    private lateinit var viewTaskScrim: View
     private lateinit var btnTaskSkip: TextView
     private lateinit var btnTaskFollow: LinearLayout
     private lateinit var tvTaskFollowLabel: TextView
@@ -812,6 +852,106 @@ class HomeActivity : AppCompatActivity() {
     private var hasActionBeenOpened = false
 
     /**
+     * Set when the last check came back "the provider is down, nothing was proven".
+     *
+     * The task is deliberately kept claimable in that case — the user did the action, we
+     * simply could not read their account — but a *resume* must not silently re-run the
+     * check, or every trip away from the app would fire another doomed request and another
+     * toast. With this set, [handleTaskReturnOnResume] goes quiet and the user retries
+     * deliberately by tapping the button, which is the only thing that should cost a
+     * round-trip while the platform is unavailable.
+     */
+    private var pendingCheckRetry = false
+
+    /**
+     * How long a remembered action stays claimable.
+     *
+     * Long enough to cover "follow, get distracted, come back"; short enough that a record
+     * left over from another day is never re-checked, which would nag the user with a toast
+     * about a task they have long since moved past.
+     */
+    private val pendingVerifyTtlMs = 15 * 60 * 1000L
+
+    /**
+     * Remember — across a process restart — that we just sent the user off to perform this
+     * task's action.
+     *
+     * [pendingVerificationTask] alone is not enough. Completing a follow means leaving for
+     * Instagram or TikTok, and that is exactly when a small handset evicts this process. The
+     * user used to return to a *new* Activity with nothing pending: the feed simply reloaded,
+     * the task still looked undone, [handleTaskReturnOnResume] returned early on a null task,
+     * and the coins for an action they had genuinely performed were never claimed — with
+     * nothing on screen to explain why.
+     *
+     * Only what verification needs is stored. Every judgement happens server-side against the
+     * viewer's live counters, so remembering the order id is enough to settle the reward.
+     */
+    private fun rememberPendingVerification(task: SocialBoostApi.TaskItem) {
+        prefs.edit()
+            .putInt(Constants.KEY_PENDING_VERIFY_ORDER_ID, task.orderId)
+            .putString(Constants.KEY_PENDING_VERIFY_USERNAME, task.username)
+            .putBoolean(Constants.KEY_PENDING_VERIFY_IS_LIKES, task.isLikes)
+            .putString(Constants.KEY_PENDING_VERIFY_PLATFORM, Platforms.normalize(task.platform))
+            .putString(Constants.KEY_PENDING_VERIFY_ACTION, task.actionType)
+            .putInt(Constants.KEY_PENDING_VERIFY_REWARD, task.rewardCoins)
+            .putLong(Constants.KEY_PENDING_VERIFY_OPENED_AT, taskOpenedTimestamp)
+            .apply()
+    }
+
+    /** Drop the remembered action: it has been claimed, skipped, or has gone stale. */
+    private fun forgetPendingVerification() {
+        prefs.edit()
+            .remove(Constants.KEY_PENDING_VERIFY_ORDER_ID)
+            .remove(Constants.KEY_PENDING_VERIFY_USERNAME)
+            .remove(Constants.KEY_PENDING_VERIFY_IS_LIKES)
+            .remove(Constants.KEY_PENDING_VERIFY_PLATFORM)
+            .remove(Constants.KEY_PENDING_VERIFY_ACTION)
+            .remove(Constants.KEY_PENDING_VERIFY_REWARD)
+            .remove(Constants.KEY_PENDING_VERIFY_OPENED_AT)
+            .apply()
+    }
+
+    /**
+     * Rebuild [pendingVerificationTask] after the Activity was recreated.
+     *
+     * A no-op when something is already pending, so the ordinary in-process path is
+     * untouched. A record older than [pendingVerifyTtlMs] is treated as a leftover and
+     * discarded rather than re-checked.
+     */
+    private fun restorePendingVerification() {
+        if (pendingVerificationTask != null) return
+
+        val orderId = prefs.getInt(Constants.KEY_PENDING_VERIFY_ORDER_ID, 0)
+        val openedAt = prefs.getLong(Constants.KEY_PENDING_VERIFY_OPENED_AT, 0L)
+        val username = prefs.getString(Constants.KEY_PENDING_VERIFY_USERNAME, null)
+
+        if (orderId == 0 || openedAt <= 0L || username.isNullOrBlank() ||
+            System.currentTimeMillis() - openedAt > pendingVerifyTtlMs
+        ) {
+            forgetPendingVerification()
+            return
+        }
+
+        pendingVerificationTask = SocialBoostApi.TaskItem(
+            orderId = orderId,
+            username = username,
+            // Only ever used to paint a card; verification does not read these.
+            imageUrl = "",
+            isLikes = prefs.getBoolean(Constants.KEY_PENDING_VERIFY_IS_LIKES, false),
+            rewardCoins = prefs.getInt(Constants.KEY_PENDING_VERIFY_REWARD, 0),
+            url = "",
+            postPk = null,
+            platform = prefs.getString(
+                Constants.KEY_PENDING_VERIFY_PLATFORM,
+                Platforms.DEFAULT
+            ) ?: Platforms.DEFAULT,
+            actionType = prefs.getString(Constants.KEY_PENDING_VERIFY_ACTION, null)
+        )
+        taskOpenedTimestamp = openedAt
+        hasActionBeenOpened = true
+    }
+
+    /**
      * Set once we have drained a fetched page and asked the server for more.
      * Stops "queue empty -> refetch -> still empty" from looping forever, while
      * still giving the user a second page instead of a premature "No tasks".
@@ -832,6 +972,8 @@ class HomeActivity : AppCompatActivity() {
     private fun setupTasksScreen() {
         tvTaskUsername = findViewById(R.id.tv_task_username)
         ivTaskAvatar = findViewById(R.id.iv_task_avatar)
+        ivTaskCover = findViewById(R.id.iv_task_cover)
+        viewTaskScrim = findViewById(R.id.view_task_scrim)
         btnTaskSkip = findViewById(R.id.btn_task_skip)
         btnTaskFollow = findViewById(R.id.btn_task_follow)
         tvTaskFollowLabel = findViewById(R.id.tv_task_follow_label)
@@ -1125,8 +1267,18 @@ class HomeActivity : AppCompatActivity() {
      * acts on it, and how to follow its progress, with a route into the fuller explanation.
      */
     private fun showOrderPlacedDialog(countLabel: String, typeLabel: String, handle: String, isLikes: Boolean) {
-        val what = if (isLikes) "video" else "profile"
-        val action = if (isLikes) "like" else "follow"
+        // The confirmation must name what the buyer actually paid for. `isLikes` only says
+        // "anchored to a post", which is now also true of shares, comments and views.
+        val orderType = OrderType.fromProductType(typeLabel)
+        val what = if (orderType?.needsVideoTarget ?: isLikes) "video" else "profile"
+        val action = when (orderType) {
+            OrderType.LIKES -> "like"
+            OrderType.SHARES -> "share"
+            OrderType.COMMENTS -> "comment"
+            OrderType.VIEWS -> "view"
+            OrderType.FOLLOWERS -> "follow"
+            null -> if (isLikes) "like" else "follow"
+        }
 
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.tt_order_placed_title))
@@ -1257,6 +1409,17 @@ class HomeActivity : AppCompatActivity() {
     private var selectedVideoTitleStr: String? = null
     private var selectedVideoUrl: String? = null
 
+    /** The resolved post behind [selectedVideoUrl], once the server has confirmed it. */
+    private var selectedVideoPreview: SocialBoostApi.PostPreview? = null
+
+    /**
+     * Guards against a slow resolution overwriting a newer one.
+     *
+     * Pasting twice in a row used to be able to land the first answer last, so the card
+     * showed video A while the field and the order held video B.
+     */
+    private var orderLinkRequest = 0
+
     private fun updateBoostTargetAccountInfo() {
         tvBoostCoinsBadge?.text = "$coinsBalance coins available"
     }
@@ -1275,9 +1438,11 @@ class HomeActivity : AppCompatActivity() {
         makeBoostListsNonFocusable()
 
         updateBoostTargetAccountInfo()
-        setupOrderTypeGrid()
+        setupOrderTabs()
         setupOrderTargetPicker()
-        selectOrderType(OrderType.DEFAULT)
+        // The reference opens the Store on Profile, so this does too: the buyer meets the
+        // follower packs — the thing most of them came for — without touching a tab.
+        selectOrderType(OrderType.FOLLOWERS)
 
         setupCoinPackButtons()
         loadBoostProducts()
@@ -1291,12 +1456,12 @@ class HomeActivity : AppCompatActivity() {
      * no effect. That was harmless while the package list owned its own scroll area, but
      * the screen is now a single `NestedScrollView`: a focusable child taller than the
      * viewport makes the scroll view pull the child's **bottom** into view, so the screen
-     * opened scrolled past the heading and the order-type grid.
+     * opened scrolled past the tab bar.
      *
      * Turning focus off costs nothing here — touch scrolling and item clicks do not need it.
      */
     private fun makeBoostListsNonFocusable() {
-        for (id in intArrayOf(R.id.rv_boost_products, R.id.rv_order_types, R.id.rv_order_videos)) {
+        for (id in intArrayOf(R.id.rv_boost_products, R.id.rv_order_videos)) {
             findViewById<View>(id)?.let {
                 it.isFocusable = false
                 it.isFocusableInTouchMode = false
@@ -1305,89 +1470,210 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * "What do you want to order?" — the two-column grid of order types.
+     * The Profile / Video segmented bar at the top of the Store, and the action chips
+     * inside the Video tab.
      *
-     * Bound straight from [OrderType.values], so the tiles and the capability flags cannot
-     * drift apart: adding a type to the enum adds its tile here. Updates repaint through
-     * `notifyDataSetChanged` rather than a retained view list, because the grid is five
-     * fixed tiles and keeping view references alive across layout passes is how grids like
-     * this end up highlighting a recycled view.
+     * Two tabs, not five. The Store sells two *places* — followers for the account, an
+     * action on one post — and the reference app shows exactly that. The five-tile grid
+     * this replaced exposed every action as a top-level destination, which reads as a
+     * taxonomy rather than a shop.
      *
-     * This replaced the old Profile / Video tab pair. The tabs only ever offered the two
-     * types we could deliver, which hid the shape of the product; the grid shows every type
-     * the reference app offers and marks the ones this server cannot fill.
+     * The action itself is a chip inside the Video tab. That distinction matters: nothing
+     * in this screen ever called [selectOrderType] with anything except FOLLOWERS and
+     * LIKES, so three of the five product families the server actually sells — Views,
+     * Shares and Comments, all priced, active and deliverable — could not be bought at
+     * all. The adapter could already filter by them; no control ever asked.
      */
-    private fun setupOrderTypeGrid() {
-        val rv = findViewById<RecyclerView>(R.id.rv_order_types) ?: return
-        rv.layoutManager = GridLayoutManager(this, 2)
-        rv.isNestedScrollingEnabled = false
-
-        rv.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-            override fun getItemCount(): Int = OrderType.values().size
-
-            override fun onCreateViewHolder(
-                parent: ViewGroup,
-                viewType: Int
-            ): RecyclerView.ViewHolder {
-                val v = LayoutInflater.from(parent.context)
-                    .inflate(R.layout.item_order_type_tile, parent, false)
-                return object : RecyclerView.ViewHolder(v) {}
+    private fun setupOrderTabs() {
+        findViewById<View>(R.id.tab_store_profile)
+            ?.setOnClickListener { selectOrderType(OrderType.FOLLOWERS) }
+        findViewById<View>(R.id.tab_store_video)
+            ?.setOnClickListener {
+                // Re-entering the Video tab restores the action that was last chosen
+                // there, so hopping to Profile and back does not silently turn a Views
+                // order into a Likes one.
+                selectOrderType(
+                    selectedOrderType.takeIf { it.needsVideoTarget } ?: OrderType.LIKES
+                )
             }
 
-            override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-                val type = OrderType.values()[position]
-                val tile = holder.itemView
-
-                tile.findViewById<ImageView>(R.id.iv_order_type_icon).setImageResource(type.iconRes)
-                tile.findViewById<TextView>(R.id.tv_order_type_label).text = type.label
-                tile.findViewById<TextView>(R.id.tv_order_type_badge).visibility =
-                    if (type.available) View.GONE else View.VISIBLE
-
-                // Selected wins over availability: a "Soon" tile still has to look chosen
-                // once tapped, otherwise the tap appears to do nothing.
-                val colour = ContextCompat.getColor(
-                    this@HomeActivity,
-                    when {
-                        type == selectedOrderType -> R.color.tt_teal
-                        type.available -> R.color.tt_text_primary
-                        else -> R.color.tt_text_secondary
-                    }
-                )
-                tile.isSelected = type == selectedOrderType
-                tile.alpha = if (type.available || type == selectedOrderType) 1f else 0.75f
-                tile.findViewById<ImageView>(R.id.iv_order_type_icon).setColorFilter(colour)
-                tile.findViewById<TextView>(R.id.tv_order_type_label).setTextColor(colour)
-
-                tile.setOnClickListener { selectOrderType(type) }
+        for ((id, type) in postActionChips) {
+            findViewById<View>(id)?.setOnClickListener {
+                if (!actionMeasurable(type)) {
+                    // The video's network does not report this counter, so the server could
+                    // never verify the task. Explain that here, at the tap — the alternative
+                    // is a package list the buyer pays from and then loses.
+                    Toast.makeText(
+                        this,
+                        getString(R.string.tt_order_action_unsupported, type.label),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    return@setOnClickListener
+                }
+                selectOrderType(type)
             }
         }
+
+        paintStoreTabs()
     }
 
     /**
-     * Switch the New order screen to an order type.
+     * Can this action be verified on the video that is currently selected?
      *
-     * Followers and Likes select normally and reveal their packages. Shares, Comments and
-     * Views select too — so the refusal is visible and explained — but the package list is
-     * replaced by a note. They must never reach an order: the server stores one `is_likes`
-     * boolean per order and has no provider configured for any other action, so an order
-     * would take coins for work nothing can perform. Same failure class as the mock
-     * purchase fallback removed in PURCHASE_FIX_REPORT.md.
+     * The preview reports which counters the provider actually returned (`orderable`: a
+     * TikTok post always has a play count, an Instagram post has no share count at all).
+     * With no video chosen yet every action stays available — the picker comes first, and
+     * greying chips before there is anything to check would just look broken.
+     */
+    private fun actionMeasurable(type: OrderType): Boolean {
+        val preview = selectedVideoPreview ?: return true
+        return preview.orderable.contains(type.actionKey)
+    }
+
+    /**
+     * The post-anchored actions, in the order the chips appear.
+     *
+     * Followers is deliberately absent: it targets the profile, not a post, so it belongs
+     * to the Profile tab and has no chip.
+     */
+    private val postActionChips: List<Pair<Int, OrderType>> = listOf(
+        R.id.chip_action_likes to OrderType.LIKES,
+        R.id.chip_action_views to OrderType.VIEWS,
+        R.id.chip_action_shares to OrderType.SHARES,
+        R.id.chip_action_comments to OrderType.COMMENTS,
+    )
+
+    /** Mark the tab that owns the current [selectedOrderType], and only that one. */
+    private fun paintStoreTabs() {
+        // Every post-anchored action lives behind the Video tab, not just Likes. Testing
+        // `== LIKES` left the Profile tab lit while a Views package was on screen.
+        val videoSelected = selectedOrderType.needsVideoTarget
+        val on = ContextCompat.getColor(this, R.color.white)
+        val off = ContextCompat.getColor(this, R.color.tt_text_secondary)
+
+        // Both halves carry a label and a weight, so the selected one is bold *and* the
+        // idle one is explicitly normal — otherwise tapping back would leave two bolds.
+        findViewById<TextView>(R.id.tv_store_tab_profile)?.let { label ->
+            label.setTextColor(if (videoSelected) off else on)
+            label.setTypeface(null, if (videoSelected) Typeface.NORMAL else Typeface.BOLD)
+        }
+        findViewById<TextView>(R.id.tv_store_tab_video)?.let { label ->
+            label.setTextColor(if (videoSelected) on else off)
+            label.setTypeface(null, if (videoSelected) Typeface.BOLD else Typeface.NORMAL)
+        }
+
+        findViewById<View>(R.id.ind_store_profile)?.visibility =
+            if (videoSelected) View.INVISIBLE else View.VISIBLE
+        findViewById<View>(R.id.ind_store_video)?.visibility =
+            if (videoSelected) View.VISIBLE else View.INVISIBLE
+
+        paintActionChips()
+    }
+
+    /**
+     * Light the chip for the action being ordered, and dim the ones this video cannot support.
+     *
+     * The border, the wash and the label colour all come from state-selected drawables, so
+     * selection only flips `isSelected` — the same contract [item_order_type_tile] uses.
+     */
+    private fun paintActionChips() {
+        for ((id, type) in postActionChips) {
+            val chip = findViewById<TextView>(id) ?: continue
+            chip.isSelected = type == selectedOrderType
+            chip.alpha = if (actionMeasurable(type)) 1f else 0.35f
+        }
+        updateActionHint()
+    }
+
+    /**
+     * One line under the chips: what the action actually means, and what it costs from.
+     *
+     * The chips name an action but cannot explain it, and "order 100 views" is meaningless to
+     * someone who has never seen a view land — the task is refused when the counter does not
+     * move, and for views TikTok publishes that counter with a lag. Saying so before payment
+     * is the difference between a failed verification and an expected one.
+     */
+    private fun updateActionHint() {
+        val hint = findViewById<TextView>(R.id.tv_order_action_hint) ?: return
+        val type = selectedOrderType
+        if (!type.needsVideoTarget) {
+            hint.visibility = View.GONE
+            return
+        }
+        hint.visibility = View.VISIBLE
+
+        val what = getString(
+            when (type) {
+                OrderType.VIEWS -> R.string.tt_order_action_what_views
+                OrderType.SHARES -> R.string.tt_order_action_what_shares
+                OrderType.COMMENTS -> R.string.tt_order_action_what_comments
+                else -> R.string.tt_order_action_what_likes
+            }
+        )
+
+        // Cheapest tier of this family in each currency. Views, Shares and Comments used to
+        // be coin-only, so a single "cheapest" lookup was enough; now that they also have
+        // card packs, quoting only the coin price would tell someone with no coins the one
+        // thing they cannot do, and quoting only the card price would hide the free route.
+        val family = serverProducts.filter { OrderType.fromProductType(it.productType) == type }
+        val cheapestCoin = family.filter { it.isCoinProduct }.minByOrNull { it.actionCount }
+        val cheapestCash = family.filter { !it.isCoinProduct }.minByOrNull { it.actionCount }
+
+        val price = when {
+            cheapestCoin == null && cheapestCash == null -> ""
+            cheapestCoin == null ->
+                getString(R.string.tt_order_action_from_cash, cheapestCash?.price ?: "")
+            cheapestCash == null -> {
+                val coins = cheapestCoin!!.coinsPrice ?: 0
+                val coinText = NumberFormat.getIntegerInstance().format(coins)
+                // Views, Shares and Comments have no card price anywhere, so without the
+                // money equivalent the hint is the only number on screen that cannot be
+                // placed against the "$2.99" on the Likes tab.
+                val usd = BoostAdapter.usdForCoins(serverProducts, coins)
+                if (usd == null) {
+                    getString(R.string.tt_order_action_from_coins, coinText)
+                } else {
+                    getString(R.string.tt_order_action_from_coins_usd, coinText, usd)
+                }
+            }
+            else -> {
+                val coins = cheapestCoin!!.coinsPrice ?: 0
+                getString(
+                    R.string.tt_order_action_from_both,
+                    NumberFormat.getIntegerInstance().format(coins),
+                    BoostAdapter.usdForCoins(serverProducts, coins) ?: "—",
+                    cheapestCash?.price ?: "",
+                )
+            }
+        }
+        hint.text = what + price
+    }
+
+    /**
+     * Switch the Store to an order type.
+     *
+     * All five types are reachable: Followers from the Profile tab, and Likes / Views /
+     * Shares / Comments from the chips inside the Video tab. The unavailable branch stays
+     * because a type the backend cannot deliver must explain itself rather than silently
+     * show nothing.
+     *
+     * Followers are added to the buyer's own profile, so that tab hides the link field and
+     * shows where the followers land instead. Every other type is anchored to one post, so
+     * those reveal the link field and the account's own videos.
      */
     private fun selectOrderType(type: OrderType) {
         selectedOrderType = type
-        findViewById<RecyclerView>(R.id.rv_order_types)?.adapter?.notifyDataSetChanged()
+        paintStoreTabs()
 
         val targetPicker = findViewById<View>(R.id.card_video_target_selection)
         val profileNote = findViewById<TextView>(R.id.tv_profile_target_note)
         val unavailable = findViewById<TextView>(R.id.tv_order_type_unavailable)
-        val packagesTitle = findViewById<View>(R.id.tv_packages_title)
         val products = findViewById<View>(R.id.rv_boost_products)
 
         if (!type.available) {
             targetPicker?.visibility = View.GONE
             profileNote?.visibility = View.GONE
             products?.visibility = View.GONE
-            packagesTitle?.visibility = View.GONE
             unavailable?.visibility = View.VISIBLE
             unavailable?.text = getString(R.string.tt_order_type_unavailable_body, type.label)
             Toast.makeText(
@@ -1400,7 +1686,6 @@ class HomeActivity : AppCompatActivity() {
 
         unavailable?.visibility = View.GONE
         products?.visibility = View.VISIBLE
-        packagesTitle?.visibility = View.VISIBLE
 
         if (type.needsVideoTarget) {
             targetPicker?.visibility = View.VISIBLE
@@ -1416,11 +1701,41 @@ class HomeActivity : AppCompatActivity() {
             )
         }
 
-        boostAdapter.setTab(
-            if (type == OrderType.LIKES) BoostAdapter.BoostTab.VIDEO
-            else BoostAdapter.BoostTab.PROFILE
-        )
+        // Show the packages for the type actually selected. The old binary tab could only
+        // express "likes" vs "followers", so Shares/Comments/Views displayed Followers
+        // packages — and buying one would have charged for the wrong product.
+        boostAdapter.setSelectedType(type.label)
         boostAdapter.refreshAffordability()
+        refreshBoostPackageState()
+    }
+
+    /**
+     * Keep the package list and its empty label in agreement with the current type.
+     *
+     * The adapter will not borrow another action's catalogue (a Views heading over Likes
+     * prices is how a buyer pays for the wrong thing), so "no rows" is a state that has to
+     * be *said* rather than papered over. It is also the honest state while the catalogue
+     * is still in flight — hence the loading wording when nothing has arrived yet.
+     */
+    private fun refreshBoostPackageState() {
+        val empty = findViewById<TextView>(R.id.tv_boost_empty) ?: return
+        val list = findViewById<View>(R.id.rv_boost_products)
+
+        // Tier count, not item count: the list now carries pricing-section headers, so a family
+        // with rows still reports a couple of items and a family with none reports zero only
+        // if its headers were skipped too.
+        if (boostAdapter.tierCount == 0) {
+            empty.text = if (serverProducts.isEmpty()) {
+                getString(R.string.tt_boost_loading)
+            } else {
+                getString(R.string.tt_boost_empty_for_type, selectedOrderType.label)
+            }
+            empty.visibility = View.VISIBLE
+            list?.visibility = View.GONE
+        } else {
+            empty.visibility = View.GONE
+            list?.visibility = View.VISIBLE
+        }
     }
 
     /** The link field, its paste button, and the "How to find a link?" help. */
@@ -1443,6 +1758,12 @@ class HomeActivity : AppCompatActivity() {
             commitOrderLink()
         }
 
+        // The full-screen "Choose a Video" grid, as in the reference. It was written but
+        // never reachable: the only two call sites pointed at each other.
+        findViewById<View>(R.id.btn_choose_video)?.setOnClickListener {
+            showChooseVideoDialog()
+        }
+
         input?.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 commitOrderLink()
@@ -1462,6 +1783,22 @@ class HomeActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.tv_how_to_find_link)?.setOnClickListener {
             showHowToFindLinkDialog()
+        }
+
+        // The card's two affordances. "Change" keeps the link in place and selects it, so
+        // the user edits what is there instead of retyping it; the X removes the target
+        // entirely, because an order must never be placed against a video the buyer has
+        // just dismissed.
+        findViewById<View>(R.id.btn_selected_change)?.setOnClickListener {
+            input?.requestFocus()
+            val text = input?.text?.length ?: 0
+            input?.setSelection(0, text)
+        }
+
+        findViewById<View>(R.id.btn_selected_clear)?.setOnClickListener {
+            clearSelectedVideoTarget()
+            input?.setText("")
+            error?.visibility = View.GONE
         }
     }
 
@@ -1583,13 +1920,18 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        if (orderVideosFetchedFor == handle && orderVideos.isNotEmpty()) return
+        // Cached per handle, and an empty result still counts as cached: on Instagram and
+        // Facebook the server answers with an empty page *by design*, so the old
+        // `&& orderVideos.isNotEmpty()` guard never latched for those platforms and every
+        // single visit to the Videos tab fired another round-trip.
+        if (orderVideosFetchedFor == handle) return
 
         title?.visibility = View.VISIBLE
         progress?.visibility = View.VISIBLE
         empty?.visibility = View.GONE
 
         Thread {
+            var reachedServer = true
             val posts = try {
                 SocialBoostApi.fetchPosts(
                     token,
@@ -1598,6 +1940,7 @@ class HomeActivity : AppCompatActivity() {
                 )
             } catch (e: Exception) {
                 Log.w("HomeActivity", "order video strip failed: ${e.message}")
+                reachedServer = false
                 emptyList()
             }
             runOnUiThread {
@@ -1609,7 +1952,9 @@ class HomeActivity : AppCompatActivity() {
                     }
                 )
                 orderVideoAdapter?.notifyDataSetChanged()
-                orderVideosFetchedFor = handle
+                // A failed call must not be remembered as "this account has no videos",
+                // or one provider outage would hide the strip until the next login.
+                if (reachedServer) orderVideosFetchedFor = handle
                 empty?.visibility = if (orderVideos.isEmpty()) View.VISIBLE else View.GONE
             }
         }.start()
@@ -1627,13 +1972,42 @@ class HomeActivity : AppCompatActivity() {
 
     /** Point the user at the target picker when a post-scoped order has no post yet. */
     private fun promptForOrderTarget() {
+        // A link that is already in the field but could not be read is a different problem
+        // from an empty field, and the answer is already printed under the field. Stacking
+        // a "pick a video" dialog on top of that explanation just buries it.
+        val input = findViewById<EditText>(R.id.et_order_link)
+        val error = findViewById<TextView>(R.id.tv_order_link_error)
+        if (!input?.text.isNullOrBlank() && error?.visibility == View.VISIBLE) {
+            Toast.makeText(this, error?.text, Toast.LENGTH_LONG).show()
+            input?.requestFocus()
+            return
+        }
+
         Toast.makeText(
             this,
             getString(R.string.tt_new_order_pick_video_first, selectedOrderType.label),
             Toast.LENGTH_LONG
         ).show()
-        val input = findViewById<EditText>(R.id.et_order_link)
-        input?.requestFocus()
+
+        // Two ways in, and the picker is one of them. Focusing the paste field alone made
+        // "buy a like" look broken for anyone who had never pasted a link: the field sits
+        // below the fold on the Video tab, so the toast was the only thing they saw.
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tt_new_order_target_title))
+            .setItems(
+                arrayOf(
+                    getString(R.string.tt_choose_video_from_list),
+                    getString(R.string.tt_choose_video_paste)
+                )
+            ) { _, which ->
+                if (which == 0) {
+                    showChooseVideoDialog()
+                } else {
+                    findViewById<EditText>(R.id.et_order_link)?.requestFocus()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /**
@@ -1748,7 +2122,196 @@ class HomeActivity : AppCompatActivity() {
         selectedVideoUrl = url
         selectedVideoTitleStr = label
         updateSelectedVideoBanner()
-        Toast.makeText(this, getString(R.string.tt_add_video_ok), Toast.LENGTH_SHORT).show()
+
+        // Keep the link field in agreement with the card. Three different paths land here —
+        // the paste field, the "Your videos" strip and the full-screen add-link dialog — and
+        // the last two used to leave the field empty, so a chosen video sat next to a blank
+        // box that looked like nothing had been picked.
+        findViewById<EditText>(R.id.et_order_link)?.let { field ->
+            if (field.text?.toString()?.trim() != url) {
+                field.setText(url)
+                field.setSelection(url.length)
+            }
+        }
+
+        // Resolve it and show the video. The old version stopped at a toast, so the only
+        // evidence the buyer had that anything had happened was the link sitting in the
+        // box — and the first real confirmation came much later, as "Could not read that
+        // video" from the server.
+        resolveOrderLink(url)
+    }
+
+    /** Show or hide the little spinner that sits where the video card will appear. */
+    private fun setOrderLinkBusy(busy: Boolean) {
+        findViewById<View>(R.id.progress_order_link)?.visibility =
+            if (busy) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Forget the chosen video.
+     *
+     * Deliberately clears the *target*, not just the card: a buyer who removes a video must
+     * not have the order silently fall back to the previous one.
+     */
+    private fun clearSelectedVideoTarget() {
+        selectedVideoPreview = null
+        selectedVideoPostPk = null
+        selectedVideoUrl = null
+        selectedVideoTitleStr = null
+        findViewById<View>(R.id.card_selected_video)?.visibility = View.GONE
+        setOrderLinkBusy(false)
+        // With no video chosen there is nothing that can be unmeasurable, so every chip
+        // comes back to full strength.
+        paintActionChips()
+    }
+
+    /**
+     * Ask the server what this link actually points at, then draw it.
+     *
+     * The local regex only proves the text *looks* like a post link. Turning it into a
+     * video needs the provider: a `vm.tiktok.com` short link has no id until its redirect
+     * is followed, and only the provider knows the cover and the counters. What comes back
+     * replaces the local guess, so the order is placed against the canonical post id.
+     *
+     * A failure is not fatal — the order's URL stays in the field and the server reads the
+     * post again when the order is created — but the *target* is cleared, because ordering
+     * the previously selected video while the field shows a different link would be the
+     * worst of both worlds.
+     */
+    private fun resolveOrderLink(url: String) {
+        val error = findViewById<TextView>(R.id.tv_order_link_error)
+        val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
+        val platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+
+        error?.visibility = View.GONE
+        // Hide the previous card, but keep the URL: applySelectedVideo has already pointed
+        // the target at the link the user just pasted, so an order placed during the (brief)
+        // resolution still refers to the right video. Only a failure clears it.
+        selectedVideoPreview = null
+        findViewById<View>(R.id.card_selected_video)?.visibility = View.GONE
+        setOrderLinkBusy(true)
+        // Nothing is known about the new link yet, so every action is offered again until
+        // the preview comes back and says which counters this video actually has.
+        paintActionChips()
+
+        // Signed out: there is nothing to resolve against. The link is still accepted by
+        // the order path, which will fail with its own message if the server cannot read it.
+        if (token.isNullOrBlank()) {
+            setOrderLinkBusy(false)
+            return
+        }
+
+        val request = ++orderLinkRequest
+        Thread {
+            try {
+                val preview = SocialBoostApi.previewPost(token, url, platform)
+                runOnUiThread {
+                    if (request != orderLinkRequest || isFinishing || isDestroyed) return@runOnUiThread
+                    bindSelectedVideo(preview)
+                }
+            } catch (e: Exception) {
+                Log.w("HomeActivity", "post preview failed: ${e.message}")
+                runOnUiThread {
+                    if (request != orderLinkRequest || isFinishing || isDestroyed) return@runOnUiThread
+                    clearSelectedVideoTarget()
+                    error?.text = e.message ?: getString(R.string.tt_add_video_bad_link)
+                    error?.visibility = View.VISIBLE
+                }
+            }
+        }.start()
+    }
+
+    /** Draw the resolved video: cover, whose it is, and what it can be ordered for. */
+    private fun bindSelectedVideo(preview: SocialBoostApi.PostPreview) {
+        selectedVideoPreview = preview
+        selectedVideoPostPk = preview.postPk
+        selectedVideoUrl = preview.url
+        selectedVideoTitleStr = preview.nickname ?: preview.author
+        updateSelectedVideoBanner()
+        setOrderLinkBusy(false)
+
+        findViewById<TextView>(R.id.tv_order_link_error)?.visibility = View.GONE
+
+        val card = findViewById<View>(R.id.card_selected_video) ?: return
+        val author = findViewById<TextView>(R.id.tv_selected_author)
+        val stats = findViewById<TextView>(R.id.tv_selected_stats)
+        val desc = findViewById<TextView>(R.id.tv_selected_desc)
+        val cover = findViewById<ImageView>(R.id.iv_selected_cover)
+
+        author?.text = when {
+            !preview.author.isNullOrBlank() -> "@${preview.author}"
+            !preview.nickname.isNullOrBlank() -> preview.nickname
+            else -> getString(R.string.tt_order_video_section)
+        }
+
+        // Only counters the provider actually returned. Each one is what the order will be
+        // verified against, so showing a figure here is a promise the task can be measured.
+        val parts = mutableListOf<String>()
+        preview.likeCount?.let { parts.add(getString(R.string.tt_order_video_likes, compactCount(it))) }
+        preview.commentCount?.let {
+            parts.add(getString(R.string.tt_order_video_comments, compactCount(it)))
+        }
+        preview.viewCount?.let { parts.add(getString(R.string.tt_order_video_views, compactCount(it))) }
+        stats?.text = parts.joinToString(" · ")
+        stats?.visibility = if (parts.isEmpty()) View.GONE else View.VISIBLE
+
+        if (preview.desc.isNullOrBlank()) {
+            desc?.visibility = View.GONE
+        } else {
+            desc?.text = preview.desc
+            desc?.visibility = View.VISIBLE
+        }
+
+        if (preview.cover.isNullOrBlank()) {
+            cover?.setImageResource(R.drawable.bg_gradient_dark)
+        } else {
+            Glide.with(this)
+                .load(preview.cover)
+                .placeholder(R.drawable.bg_gradient_dark)
+                .into(cover)
+        }
+
+        // The eye badge doubles as "this video can be ordered for views", which is exactly
+        // the question a buyer on the Views package is asking.
+        findViewById<View>(R.id.iv_selected_play)?.visibility =
+            if (preview.viewCount != null) View.VISIBLE else View.GONE
+
+        card.visibility = View.VISIBLE
+
+        // The video now decides which actions exist: dim the ones it cannot support, and move
+        // off one that has just become impossible. Painting happens after the fallback switch
+        // so the chips and the package list can never disagree.
+        ensureMeasurableActionSelected()
+        paintActionChips()
+    }
+
+    /**
+     * If the video that just resolved cannot support the action already chosen, move to one it can.
+     *
+     * The usual case: Views is selected and someone pastes an Instagram post, whose provider
+     * exposes no play count. Switching (and saying so) beats leaving a lit chip that refuses
+     * every tap, and beats letting the order through as unverifiable.
+     */
+    private fun ensureMeasurableActionSelected() {
+        if (actionMeasurable(selectedOrderType)) return
+        val fallback = postActionChips.map { it.second }.firstOrNull { actionMeasurable(it) } ?: return
+        Toast.makeText(
+            this,
+            getString(
+                R.string.tt_order_action_switched,
+                selectedOrderType.label,
+                fallback.label
+            ),
+            Toast.LENGTH_LONG
+        ).show()
+        selectOrderType(fallback)
+    }
+
+    /** 133100 -> "133.1k", 9300 -> "9.3k", 332 -> "332". */
+    private fun compactCount(n: Int): String = when {
+        n >= 1_000_000 -> String.format("%.1fm", n / 1_000_000.0)
+        n >= 1_000 -> String.format("%.1fk", n / 1_000.0)
+        else -> n.toString()
     }
 
     /**
@@ -1990,6 +2553,7 @@ class HomeActivity : AppCompatActivity() {
         if (token.isNullOrBlank()) {
             serverProducts = emptyList()
             boostAdapter.updateServerProducts(emptyList())
+            refreshBoostPackageState()
             return
         }
 
@@ -2001,6 +2565,7 @@ class HomeActivity : AppCompatActivity() {
                     // packs would otherwise be dropped before the Buy Coins dialog can see them.
                     serverProducts = products
                     boostAdapter.updateServerProducts(products)
+                    refreshBoostPackageState()
                 }
             } catch (e: Exception) {
                 Log.w("HomeActivity", "products fetch failed: ${e.message}")
@@ -2012,6 +2577,7 @@ class HomeActivity : AppCompatActivity() {
                                 runOnUiThread {
                                     serverProducts = retry
                                     boostAdapter.updateServerProducts(retry)
+                                    refreshBoostPackageState()
                                 }
                             } catch (_: Exception) {}
                         }.start()
@@ -2076,7 +2642,12 @@ class HomeActivity : AppCompatActivity() {
     ) {
         Toast.makeText(this, "Placing order…", Toast.LENGTH_SHORT).show()
 
-        val isLikes = typeLabel.contains("Like", ignoreCase = true)
+        // Whether this package is anchored to one post (like / share / comment / view) or to
+        // the whole profile (followers). The product type decides — the old
+        // `contains("Like")` test treated a Shares or Comments order as a followers order,
+        // which sent a profile URL and made the server reject it.
+        val isLikes = OrderType.fromProductType(typeLabel)?.needsVideoTarget
+            ?: typeLabel.contains("Like", ignoreCase = true)
 
         // A likes order is anchored to ONE video. Sending the profile URL (as this used to)
         // makes the server unable to read a like count, and it rejects the order — which is
@@ -2167,12 +2738,37 @@ class HomeActivity : AppCompatActivity() {
         secUid: String,
         handle: String
     ) {
-        val isLikes = (product.productType ?: "").contains("Like", ignoreCase = true)
+        // Same rule as the coin path: the product type decides whether this package is a post
+        // task (and therefore needs the pasted video link) or a profile task.
+        val isLikes = OrderType.fromProductType(product.productType)?.needsVideoTarget
+            ?: (product.productType ?: "").contains("Like", ignoreCase = true)
 
         if (isLikes && selectedVideoUrl.isNullOrBlank()) {
             // The New order screen has its own paste field and video strip now, so send the
             // user there rather than to the old full-screen picker.
             promptForOrderTarget()
+            return
+        }
+
+        // Refuse before creating anything if Play cannot sell this package.
+        //
+        // The order is created *first* and paid *second*, so a SKU Play does not know leaves
+        // a real `Pending` row behind. Nothing can ever move it: the task feed only serves
+        // `Progress`, so no action can be performed on it, and /payment/notify never receives
+        // a token for it. The owner then sees it in "Your orders" as "0 / 400" forever and
+        // reasonably concludes the app is broken — which is what happened with order #211
+        // (a $4.99 card pack whose Play product did not exist yet).
+        //
+        // `withdrawUnpaidPlayOrder()` exists as a backstop, but it only runs once the
+        // checkout sheet was actually opened. Checking here means the ghost is never written.
+        if (!billingManager.isBillingReady() || !billingManager.isProductAvailable(billingId)) {
+            val reason = if (!billingManager.isBillingReady()) {
+                "Google Play is still connecting — try again in a moment. Nothing was ordered."
+            } else {
+                "This package isn't live in Google Play yet (\"$billingId\"). Nothing was ordered."
+            }
+            setBillingStatus(reason, isError = true)
+            showBillingProblemDialog(reason)
             return
         }
 
@@ -2201,7 +2797,10 @@ class HomeActivity : AppCompatActivity() {
                         if (billingManager.isBillingReady()) {
                             billingManager.launchPurchaseFlow(billingId, orderId)
                         } else {
-                            Toast.makeText(this, "Order #$orderId created! Google Play is connecting.", Toast.LENGTH_LONG).show()
+                            // Billing dropped between the guard and here. The row is already
+                            // written, so take it back — a Pending order that no checkout
+                            // ever touched can never be activated.
+                            withdrawUnpaidPlayOrder()
                         }
                     }
                 } catch (e: Exception) {
@@ -2348,6 +2947,11 @@ class HomeActivity : AppCompatActivity() {
     private fun showNextTask() {
         pendingVerificationTask = null
         hasActionBeenOpened = false
+        // Advancing means the previous task is settled — it either paid out or was skipped —
+        // so the remembered action must not survive to be re-checked later, and any
+        // "the provider was down" marker belongs to that task, not to the next one.
+        pendingCheckRetry = false
+        forgetPendingVerification()
         val next = taskQueue.removeFirstOrNull()
         currentTask = next
 
@@ -2376,7 +2980,9 @@ class HomeActivity : AppCompatActivity() {
         scrollTask.visibility = View.VISIBLE
 
         tvTaskUsername.text = "@${next.username}"
-        tvTaskFollowLabel.text = if (next.isLikes) "Like" else getString(R.string.tt_follow)
+        // "Like" / "Share" / "Comment" / "View" / "Follow" — the card must name the action
+        // the performer is actually being asked to take, not just "Like or Follow".
+        tvTaskFollowLabel.text = next.actionLabel
         tvTaskReward.text = "+${next.rewardCoins}"
 
         // Size of the account being boosted, so the task is judgeable at a glance. Left
@@ -2400,12 +3006,16 @@ class HomeActivity : AppCompatActivity() {
         // The heading's status line and reward chip, both describing the task now on
         // screen. While there is no task the chip is hidden outright (see showTaskState),
         // so it can never show the previous task's payout next to "searching".
-        tvTaskStatus.text = if (next.isLikes) {
-            getString(R.string.tt_next_task_like, next.username)
-        } else {
-            getString(R.string.tt_next_task_follow, next.username)
+        tvTaskStatus.text = when (next.action) {
+            "like" -> getString(R.string.tt_next_task_like, next.username)
+            "share" -> getString(R.string.tt_next_task_share, next.username)
+            "comment" -> getString(R.string.tt_next_task_comment, next.username)
+            "view" -> getString(R.string.tt_next_task_view, next.username)
+            else -> getString(R.string.tt_next_task_follow, next.username)
         }
-        tvTaskStatusReward.text = "+${next.rewardCoins}"
+        // Bare figure, not "+5": the coin mark beside it already says what the number is,
+        // and the plus sign made a one-off payout look like a running total.
+        tvTaskStatusReward.text = next.rewardCoins.toString()
         layoutTaskStatusReward.visibility = View.VISIBLE
 
         renderOtherTasks()
@@ -2418,6 +3028,74 @@ class HomeActivity : AppCompatActivity() {
             Avatars.candidates(next.username, next.platform, next.imageUrl),
             next.username
         )
+        showTaskCover(next)
+    }
+
+    /**
+     * Put the video a like task is about on the card.
+     *
+     * A like task asks for one specific post, so the performer has to recognise it — an
+     * avatar cannot say which video to open. The feed carries the post's still as
+     * `post.cover`, captured when the buyer placed the order from a pasted video link.
+     *
+     * Two fallbacks matter:
+     *   * No still — a follow task, or a like order whose provider returned no cover. Keep
+     *     the account picture and leave the still hidden rather than drawing an empty frame.
+     *   * The still fails to load. Post stills are signed CDN URLs that expire, so this is
+     *     expected some days after the order was placed; drop back to the avatar instead of
+     *     leaving a blank card.
+     *
+     * The callback re-checks the order id before touching any view: a slow load from the
+     * previous task must not hide the still belonging to the task now on screen.
+     */
+    private fun showTaskCover(task: SocialBoostApi.TaskItem) {
+        val cover = task.postCover
+        if (!task.isLikes || cover.isNullOrBlank()) {
+            ivTaskCover.visibility = View.GONE
+            viewTaskScrim.visibility = View.GONE
+            ivTaskAvatar.visibility = View.VISIBLE
+            return
+        }
+
+        ivTaskCover.visibility = View.VISIBLE
+        viewTaskScrim.visibility = View.VISIBLE
+        ivTaskAvatar.visibility = View.GONE
+
+        val forOrder = task.orderId
+        try {
+            Glide.with(this)
+                .load(cover)
+                .centerCrop()
+                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                .listener(object : RequestListener<Drawable> {
+                    override fun onLoadFailed(
+                        e: GlideException?,
+                        model: Any?,
+                        target: Target<Drawable>,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        if (currentTask?.orderId == forOrder) {
+                            ivTaskCover.visibility = View.GONE
+                            viewTaskScrim.visibility = View.GONE
+                            ivTaskAvatar.visibility = View.VISIBLE
+                        }
+                        Log.i("HomeActivity", "task cover failed: ${e?.message}")
+                        return true
+                    }
+
+                    override fun onResourceReady(
+                        resource: Drawable,
+                        model: Any,
+                        target: Target<Drawable>?,
+                        dataSource: DataSource,
+                        isFirstResource: Boolean
+                    ): Boolean = false
+                })
+                .into(ivTaskCover)
+        } catch (e: Exception) {
+            // Glide throws when the Activity is already finishing; the card keeps the avatar.
+            Log.i("HomeActivity", "task cover load skipped: ${e.message}")
+        }
     }
 
     /**
@@ -2498,13 +3176,15 @@ class HomeActivity : AppCompatActivity() {
         val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null) ?: return
         if (isVerifying) return
 
-        // If the user already opened TikTok for this task and taps again:
+        val appName = Platforms.label(task.platform)
+
+        // If the user already opened the target for this task and taps again:
         if (hasActionBeenOpened && pendingVerificationTask?.orderId == task.orderId) {
             val elapsed = System.currentTimeMillis() - taskOpenedTimestamp
             if (elapsed < 2000) {
-                val action = if (task.isLikes) "like the video" else "follow @${task.username}"
-                Toast.makeText(this, "Please $action on TikTok first!", Toast.LENGTH_SHORT).show()
-                openTikTokForTask(task)
+                val action = task.actionPhrase
+                Toast.makeText(this, "Please $action on $appName first!", Toast.LENGTH_SHORT).show()
+                openTaskTarget(task)
                 return
             }
             // User was away and tapped to verify:
@@ -2512,18 +3192,21 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        // First click: record pending task, timestamp, change button to check state, open TikTok
+        // First click: record pending task, timestamp, change button to check state, open the target
         pendingVerificationTask = task
         taskOpenedTimestamp = System.currentTimeMillis()
         hasActionBeenOpened = true
+        // Also on disk: the user is about to leave for another app, which is when this
+        // process is most likely to be killed (see rememberPendingVerification).
+        rememberPendingVerification(task)
 
         tvTaskFollowLabel.text = "Check ⚡"
 
-        // A like is verified by comparing the video's like count before and after, so
-        // the "before" snapshot has to be stored *now* — before the user can possibly
-        // tap Like. TikTok is opened only once the snapshot is saved, otherwise a fast
-        // user could like the video first and the baseline would already include their
-        // own like, permanently denying them the reward.
+        // A like is verified by comparing the post's like count before and after, so the
+        // "before" snapshot has to be stored *now* — before the user can possibly tap Like.
+        // The app is opened only once the snapshot is saved, otherwise a fast user could
+        // like the post first and the baseline would already include their own like,
+        // permanently denying them the reward.
         if (task.isLikes) {
             Thread {
                 try {
@@ -2533,48 +3216,115 @@ class HomeActivity : AppCompatActivity() {
                         url = task.url,
                         ttUsername = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null).orEmpty(),
                         secUid = prefs.getString(Constants.KEY_SEC_UID, null),
-                        platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+                        // The baseline describes the TARGET post, so it must be read through
+                        // the target's own network provider. Sending the viewer's signed-in
+                        // platform made the TikTok scraper read an Instagram URL, which fails
+                        // — and used to store a 0 baseline that then "verified" any later like
+                        // for free.
+                        platform = Platforms.normalize(task.platform)
                     )
                 } catch (e: Exception) {
                     Log.w("HomeActivity", "like baseline failed: ${e.message}")
                 }
-                runOnUiThread { openTikTokForTask(task) }
+                runOnUiThread { openTaskTarget(task) }
             }.start()
         } else {
-            openTikTokForTask(task)
+            openTaskTarget(task)
         }
     }
 
-    private fun openTikTokForTask(task: SocialBoostApi.TaskItem) {
-        val openUrl = task.url.ifBlank { "https://www.tiktok.com/@${task.username}" }
-        try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(openUrl))
-            startActivity(intent)
-            val action = if (task.isLikes) "Like the video" else "Follow @${task.username}"
-            Toast.makeText(this, "$action on TikTok, then return here to claim your coins!", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Could not open TikTok. Please check link.", Toast.LENGTH_SHORT).show()
+    /**
+     * Open the task's target on the network it actually belongs to.
+     *
+     * Three things were wrong here. The fallback URL was hard-coded to TikTok, so a task
+     * that arrived without a `url` sent an Instagram user to tiktok.com. The launch was a
+     * bare ACTION_VIEW on an https link, which only reaches the app if Android hands the
+     * link over — otherwise it opens a browser and nothing says the app is missing. And
+     * every message said "TikTok" even on Instagram and Facebook tasks.
+     *
+     * Now the network's own app is opened directly. A follow task lands on the profile and
+     * a like task on the post, because `task.url` already carries the right one. When the
+     * app is genuinely absent the user is told so, and the browser takes over so the action
+     * can still be performed and credited.
+     */
+    private fun openTaskTarget(task: SocialBoostApi.TaskItem) {
+        val platform = Platforms.normalize(task.platform)
+        val appName = Platforms.label(platform)
+        val target = task.url.ifBlank { Constants.profileUrlFor(task.username, platform) }
+        val pkg = Platforms.androidPackage(platform)
+
+        // 1. Straight to the right screen: an https link addressed to the network's own
+        //    package. Instagram and Facebook both claim their profile and post links.
+        if (tryStart(Intent(Intent.ACTION_VIEW, Uri.parse(target)).setPackage(pkg))) {
+            Toast.makeText(this, openHint(task, appName), Toast.LENGTH_LONG).show()
+            return
         }
+
+        // 2. The app is installed but does not claim this link shape — open the app itself
+        //    so the user can still reach the profile rather than being told it is missing.
+        val launch = packageManager.getLaunchIntentForPackage(pkg)
+        if (launch != null && tryStart(launch)) {
+            Toast.makeText(this, "$appName is open. ${openHint(task, appName)}", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // 3. Not installed. Say so plainly, then let the browser carry it.
+        Toast.makeText(this, "$appName app not found — opening in your browser", Toast.LENGTH_LONG).show()
+        if (!tryStart(Intent(Intent.ACTION_VIEW, Uri.parse(target)))) {
+            Toast.makeText(this, "Could not open $target", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** What the user should do once the target is on screen. */
+    private fun openHint(task: SocialBoostApi.TaskItem, appName: String): String {
+        // "Like the post", "Share the post", "Comment on the post", "Follow @handle" …
+        val phrase = task.actionPhrase.replaceFirstChar { it.uppercaseChar() }
+        return "$phrase on $appName, then return here to claim your coins!"
+    }
+
+    private fun tryStart(intent: Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (e: Exception) {
+        // ActivityNotFoundException when the app is absent, or it does not claim the link.
+        Log.i("HomeActivity", "could not open ${intent.data}: ${e.message}")
+        false
     }
 
     private fun handleTaskReturnOnResume() {
+        // Going to Instagram or TikTok to perform the action is exactly when this process
+        // tends to be evicted, and the in-memory fields go with it. Reload what was stored
+        // before concluding there is nothing to do — otherwise a follow that really happened
+        // is silently never verified, and the user is never paid for it.
+        restorePendingVerification()
+
         val task = pendingVerificationTask ?: return
         if (!hasActionBeenOpened || isVerifying) return
 
+        // The last attempt could not run because the platform's provider was down. The task
+        // is still pending and still claimable, but re-running the check on every resume
+        // would just fire another doomed request and another toast. Wait for a deliberate
+        // tap on the button instead.
+        if (pendingCheckRetry) {
+            tvTaskFollowLabel.text = "Check ⚡"
+            return
+        }
+
+        val appName = Platforms.label(task.platform)
         val elapsed = System.currentTimeMillis() - taskOpenedTimestamp
         if (elapsed >= 2200) {
-            // User stayed in TikTok long enough to perform the action -> verify automatically!
+            // User stayed on the network long enough to perform the action -> verify automatically!
             val token = prefs.getString(Constants.KEY_AUTH_TOKEN, null)
             if (!token.isNullOrBlank()) {
                 runTaskVerification(task, token)
             }
         } else {
-            // User came back immediately without following:
+            // User came back immediately without doing anything:
             tvTaskFollowLabel.text = "Check ⚡"
-            val action = if (task.isLikes) "like" else "follow"
+            val action = task.actionPhrase
             Toast.makeText(
                 this,
-                "Please complete the $action on TikTok to earn coins!",
+                "Please complete the $action on $appName to earn coins!",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -2587,6 +3337,13 @@ class HomeActivity : AppCompatActivity() {
         btnTaskFollow.alpha = 0.6f
         tvTaskFollowLabel.text = "Checking… ⏳"
 
+        // A deliberate attempt is under way, so the "stay quiet on resume" flag has done its
+        // job. The stored record is NOT cleared here any more: it is only cleared once an
+        // outcome that actually settles the task arrives (claimed, or provably not done).
+        // Clearing it up front made a check that could not run — the provider being down —
+        // indistinguishable from a real refusal, and the user's genuine follow was lost.
+        pendingCheckRetry = false
+
         val handle = prefs.getString(Constants.KEY_TIKTOK_USERNAME, null).orEmpty()
         val secUid = prefs.getString(Constants.KEY_SEC_UID, null)
 
@@ -2595,7 +3352,9 @@ class HomeActivity : AppCompatActivity() {
                 // Brief verification animation pause so the user sees the checking state
                 Thread.sleep(700)
 
-                val earned = SocialBoostApi.verifyTask(
+                // Returns more than a number: `retryable` distinguishes "we read your account
+                // and nothing moved" from "we could not read your account at all".
+                val result = SocialBoostApi.verifyTask(
                     token = token,
                     orderId = task.orderId,
                     secUid = secUid,
@@ -2603,7 +3362,15 @@ class HomeActivity : AppCompatActivity() {
                     targetUsername = task.username,
                     isLikes = task.isLikes,
                     actionCompleted = true,
-                    platform = Platforms.normalize(prefs.getString(Constants.KEY_PLATFORM, null))
+                    // The action was performed on the TASK's network, so that is the
+                    // network whose provider must read the viewer's counter. Sending the
+                    // signed-in platform made the server measure the wrong account: a
+                    // follow done on Instagram was checked against the viewer's TikTok
+                    // following count, which cannot have moved, so the task never paid.
+                    // This must also match the platform used to prime the like baseline
+                    // (see completeCurrentTask) or the baseline row is looked up on the
+                    // wrong network and the checker throws "Previous like count not found".
+                    platform = Platforms.normalize(task.platform)
                 )
 
                 runOnUiThread {
@@ -2611,32 +3378,72 @@ class HomeActivity : AppCompatActivity() {
                     btnTaskFollow.isEnabled = true
                     btnTaskFollow.alpha = 1f
 
-                    if (earned > 0) {
-                        coinsBalance += earned
-                        prefs.edit().putInt(Constants.KEY_COINS, coinsBalance).apply()
-                        updateCoinsDisplay()
+                    when {
+                        result.coins > 0 -> {
+                            // Take the balance from the server, do not compute it here.
+                            //
+                            // `coinsBalance += result.coins` was a guess that only agrees
+                            // with the ledger if nothing else touched the balance between
+                            // this screen loading and the credit landing. It does not
+                            // agree after a bonus, an unfollow clawback or a credit from
+                            // another device, which is how a user ends up being told
+                            // "coins added" while the number on screen never moves.
+                            val reported = result.balance
+                            if (reported != null) {
+                                coinsBalance = reported
+                            }
+                            prefs.edit().putInt(Constants.KEY_COINS, coinsBalance).apply()
+                            updateCoinsDisplay()
+                            // A server that did not report the balance (an older build):
+                            // ask it, rather than adding the delta ourselves.
+                            if (reported == null) refreshCoinsFromServer(silent = true)
 
-                        val action = if (task.isLikes) "Like" else "Follow"
-                        Toast.makeText(
-                            this,
-                            "🎉 $action verified! +$earned Coins added!",
-                            Toast.LENGTH_LONG
-                        ).show()
+                            val action = task.actionLabel
+                            Toast.makeText(
+                                this,
+                                "🎉 $action verified! +${result.coins} Coins added!",
+                                Toast.LENGTH_LONG
+                            ).show()
 
-                        pendingVerificationTask = null
-                        hasActionBeenOpened = false
-                        showNextTask()
-                    } else {
-                        // Not verified
-                        val action = if (task.isLikes) "Like" else getString(R.string.tt_follow)
-                        tvTaskFollowLabel.text = action
-                        Toast.makeText(
-                            this,
-                            "Could not verify. Please complete the action on TikTok to earn coins.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        pendingVerificationTask = null
-                        hasActionBeenOpened = false
+                            forgetPendingVerification()
+                            pendingVerificationTask = null
+                            hasActionBeenOpened = false
+                            showNextTask()
+                        }
+
+                        result.retryable -> {
+                            // The platform's provider is unreachable, so nothing was proven —
+                            // neither that the action was done nor that it was not. Keep the
+                            // task pending and leave the button on "Check ⚡" so the very same
+                            // task can be claimed once the provider is back. Saying "please
+                            // complete the action" here is what told a user who had just
+                            // followed to go and follow again, and then discarded the task.
+                            pendingCheckRetry = true
+                            tvTaskFollowLabel.text = "Check ⚡"
+                            Toast.makeText(
+                                this,
+                                result.message
+                                    ?: "${Platforms.label(task.platform)} is temporarily " +
+                                        "unavailable — tap Check again in a few minutes.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        else -> {
+                            // A genuine refusal: the server read the account and its counter
+                            // did not move, so the action really has not been performed.
+                            val action = task.actionLabel
+                            tvTaskFollowLabel.text = action
+                            Toast.makeText(
+                                this,
+                                "Could not verify. Please complete the action on " +
+                                    "${Platforms.label(task.platform)} to earn coins.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            forgetPendingVerification()
+                            pendingVerificationTask = null
+                            hasActionBeenOpened = false
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -2645,13 +3452,17 @@ class HomeActivity : AppCompatActivity() {
                     isVerifying = false
                     btnTaskFollow.isEnabled = true
                     btnTaskFollow.alpha = 1f
-                    val action = if (task.isLikes) "Like" else getString(R.string.tt_follow)
+                    val action = task.actionLabel
                     tvTaskFollowLabel.text = action
                     Toast.makeText(
                         this,
                         e.message ?: "Verification failed",
                         Toast.LENGTH_LONG
                     ).show()
+                    // A hard error (no network, expired token) settles nothing, so the stored
+                    // record is dropped here exactly as before — [pendingCheckRetry] is not
+                    // set, so the ordinary "open the task again" path is unchanged.
+                    forgetPendingVerification()
                     pendingVerificationTask = null
                     hasActionBeenOpened = false
                 }
@@ -3322,20 +4133,24 @@ class HomeActivity : AppCompatActivity() {
         btnClose.setOnClickListener { dialog.dismiss() }
 
         // --- Promo code -------------------------------------------------
-        // NOTE: a client-side promo cannot change what Google Play charges. Promo codes
-        // therefore grant bonus coins rather than displaying a price the user will never pay.
+        // Disabled, because a client-side promo cannot be honest about coins.
+        //
+        // It cannot change what Google Play charges, and it must not mint coins on the device
+        // either: this used to do `coinsBalance += 250`, adding 250 coins to the local cache
+        // that the server had never granted. The balance looked topped up until the next /me
+        // refresh reverted it, while the affordability checks on Store and Tasks used the
+        // inflated figure — so a "promo" let a user attempt orders the server would refuse.
+        //
+        // A promo grant has to be a real, auditable coin credit on the server, the way the
+        // welcome and daily bonuses are written through the coins_histories ledger
+        // (see lib/services/welcomeBonus.js and lib/services/dailyBonus.js). Until that
+        // endpoint exists the field stays disabled rather than faking a balance.
+        etPromo.isEnabled = false
+        btnApplyPromo.isEnabled = false
+        tvPromoApplied.visibility = View.VISIBLE
+        tvPromoApplied.text = "Promo codes are not available yet"
         btnApplyPromo.setOnClickListener {
-            val code = etPromo.text.toString().trim()
-            if (code.equals("DEVQUIZ25", ignoreCase = true) || code.equals("PROQUIZ20", ignoreCase = true)) {
-                tvPromoApplied.visibility = View.VISIBLE
-                tvPromoApplied.text = "✔ Promo accepted - 250 bonus coins added"
-                coinsBalance += 250
-                updateCoinsDisplay()
-                Toast.makeText(this, "Promo accepted - 250 bonus coins added", Toast.LENGTH_SHORT).show()
-            } else {
-                tvPromoApplied.visibility = View.GONE
-                Toast.makeText(this, "Invalid promo code", Toast.LENGTH_SHORT).show()
-            }
+            Toast.makeText(this, "Promo codes are not available yet", Toast.LENGTH_SHORT).show()
         }
 
         btnConfirmPurchase.setOnClickListener {

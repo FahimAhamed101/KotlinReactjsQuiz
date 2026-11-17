@@ -68,3 +68,9 @@ _tools/
 socialboostapi/scripts/tmp-*.mjs
 .vercel
 .env*
+app*.xml
+ig*.xml
+u*.xml
+recents.xml
+tta.xml
+detech/

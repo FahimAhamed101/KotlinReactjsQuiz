@@ -40,6 +40,15 @@ object SocialBoostApi {
         val url: String,
         val postPk: String?,
         /**
+         * The still of the video a like task is about, when the server captured one.
+         *
+         * A like task asks for one specific post, and the account's avatar does not say
+         * which one — so the card shows this instead. Null for follow tasks, and for like
+         * orders whose provider returned no cover, in which case the card keeps the avatar
+         * rather than drawing an empty frame.
+         */
+        val postCover: String? = null,
+        /**
          * Which network the task's account belongs to.
          *
          * The avatar URL is keyed by (platform, username) — the same handle is a
@@ -56,8 +65,38 @@ object SocialBoostApi {
          */
         val targetFollowerCount: Int? = null,
         /** Whether the boosted account is verified upstream. */
-        val targetVerified: Boolean = false
-    )
+        val targetVerified: Boolean = false,
+        /**
+         * What the performer must do: follow | like | share | comment | view.
+         *
+         * Null on responses from before the field existed and on older orders; [action]
+         * then falls back to the is_likes boolean.
+         */
+        val actionType: String? = null
+    ) {
+        /**
+         * The action, lower case.
+         *
+         * `is_likes` alone cannot tell a share from a like — both are anchored to a post —
+         * so the explicit field wins whenever the server sends it.
+         */
+        val action: String
+            get() = actionType?.lowercase() ?: if (isLikes) "like" else "follow"
+
+        /** Button label: "Like", "Share", "Comment", "View", "Follow". */
+        val actionLabel: String
+            get() = action.replaceFirstChar { it.uppercaseChar() }
+
+        /** Instruction phrase: "like the post", "comment on the post", "follow @handle". */
+        val actionPhrase: String
+            get() = when (action) {
+                "like" -> "like the post"
+                "share" -> "share the post"
+                "comment" -> "comment on the post"
+                "view" -> "watch the post"
+                else -> "follow @$username"
+            }
+    }
 
     class ApiException(val errorCode: String, message: String?) : Exception(message ?: errorCode)
 
@@ -161,6 +200,80 @@ object SocialBoostApi {
             )
         }
         return out
+    }
+
+    /**
+     * A pasted link, resolved to the actual post — what the order screen needs to draw the
+     * video before the buyer pays for it.
+     *
+     * `postPk` and `url` are the server's canonical values, not the client's regex guess:
+     * a `vm.tiktok.com` short link has no id until the redirect is followed, and Instagram
+     * and Facebook share links cannot be rebuilt from an id at all.
+     *
+     * `orderable` lists the actions whose counter this network really exposes. The checker
+     * refuses to pay against a counter it cannot read (Instagram has no share count, for
+     * instance), so the screen must not offer that package either.
+     */
+    data class PostPreview(
+        val postPk: String?,
+        val url: String,
+        val platform: String,
+        val author: String?,
+        val nickname: String?,
+        val avatar: String?,
+        val cover: String?,
+        val desc: String?,
+        val likeCount: Int?,
+        val commentCount: Int?,
+        val shareCount: Int?,
+        val viewCount: Int?,
+        val orderable: Set<String>
+    )
+
+    /**
+     * POST /api/v6/posts/preview -> resolve one video link.
+     *
+     * Throws with the server's own explanation when the link is not a single post, the post
+     * is private or deleted, or no provider is configured — the caller shows that text
+     * instead of inventing its own guess about what went wrong.
+     */
+    fun previewPost(token: String, url: String, platform: String = Platforms.DEFAULT): PostPreview {
+        val body = JSONObject().apply {
+            put("url", url)
+            put("platform", Platforms.normalize(platform))
+        }
+        val payload = call("POST", "/api/v6/posts/preview", body, token)
+        val d = payload.optJSONObject("data") ?: payload
+
+        val counts = d.optJSONObject("counts")
+        fun count(key: String): Int? =
+            if (counts == null || counts.isNull(key)) null else counts.optInt(key)
+
+        val actions = mutableSetOf<String>()
+        d.optJSONArray("orderable")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                arr.optString(i).takeIf { it.isNotBlank() }?.let { actions.add(it) }
+            }
+        }
+
+        fun text(key: String): String? =
+            if (d.isNull(key)) null else d.optString(key).trim().ifBlank { null }
+
+        return PostPreview(
+            postPk = text("post_pk"),
+            url = text("url") ?: url,
+            platform = text("platform") ?: Platforms.normalize(platform),
+            author = text("author"),
+            nickname = text("nickname"),
+            avatar = text("avatar"),
+            cover = text("cover"),
+            desc = text("desc"),
+            likeCount = count("like"),
+            commentCount = count("comment"),
+            shareCount = count("share"),
+            viewCount = count("view"),
+            orderable = actions
+        )
     }
 
     /**
@@ -385,6 +498,14 @@ object SocialBoostApi {
             // The boosted account's public stats. Absent on responses from before the field
             // existed, so a missing block means "unknown", not "zero".
             val target = o.optJSONObject("target")
+            // The still of the video a like task is about. Absent on responses from before
+            // the field existed, and on like orders whose provider returned no cover — in
+            // both cases the card keeps the account picture instead.
+            val post = o.optJSONObject("post")
+            val postCover = post?.let {
+                // isNull first: optString reports the literal "null" for a JSON null.
+                if (it.isNull("cover")) null else it.optString("cover", "").ifBlank { null }
+            }
             tasks.add(
                 TaskItem(
                     orderId = o.optInt("id"),
@@ -394,6 +515,11 @@ object SocialBoostApi {
                     rewardCoins = if (isLikes) likeReward else followReward,
                     url = o.optString("url", ""),
                     postPk = o.optString("post_pk", "").ifBlank { null },
+                    postCover = postCover,
+                    // Which counter proves the task. Absent on older responses, in which
+                    // case TaskItem.action falls back to is_likes.
+                    actionType = if (o.isNull("action_type")) null
+                    else o.optString("action_type", "").ifBlank { null },
                     platform = if (o.isNull("platform")) Platforms.DEFAULT
                     else o.optString("platform", Platforms.DEFAULT).ifBlank { Platforms.DEFAULT },
                     // isNull first: optInt reports 0 for both a missing key and a JSON
@@ -564,7 +690,7 @@ object SocialBoostApi {
 
     /**
      * POST /api/v6/coins/check -> verify the action and credit coins.
-     * @return coins earned (0 when nothing was credited)
+     * @return a [VerifyResult]; see that class for why a bare coin count is not enough.
      */
     fun verifyTask(
         token: String,
@@ -575,7 +701,7 @@ object SocialBoostApi {
         isLikes: Boolean = false,
         actionCompleted: Boolean = true,
         platform: String = Platforms.DEFAULT
-    ): Int {
+    ): VerifyResult {
         val body = JSONObject().apply {
             put("order_id", orderId)
             if (!secUid.isNullOrBlank()) put("sec_uid", secUid)
@@ -592,8 +718,50 @@ object SocialBoostApi {
         }
 
         val data = call("POST", "/api/v6/coins/check", body, token)
-        return if (data.optBoolean("is_success", false)) data.optInt("coins_earned", 0) else 0
+        val coins = if (data.optBoolean("is_success", false)) data.optInt("coins_earned", 0) else 0
+        // `isNull` and not just `optString`: for a JSON null, optString(key, fallback)
+        // hands back the four-character string "null", which would be shown verbatim.
+        val message = if (data.isNull("message")) null else data.optString("message").takeIf { it.isNotBlank() }
+        // The balance the server now holds, when it sent one. Null means "not reported"
+        // (an older deployment), and must not be confused with a real balance of 0.
+        val balance = if (data.has("coins_balance") && !data.isNull("coins_balance")) {
+            data.optInt("coins_balance")
+        } else {
+            null
+        }
+        return VerifyResult(
+            coins = coins,
+            retryable = data.optBoolean("retryable", false),
+            message = message,
+            balance = balance
+        )
     }
+
+    /**
+     * The outcome of a coin claim, which is not simply a number.
+     *
+     * A "soft refusal" (we read your account and nothing moved → you have not done the
+     * action yet) and an "outage" (we could not read your account at all) both used to be
+     * reported as `0`, so the caller showed the same "could not verify — please complete
+     * the action" message for both. That told a user who *had* just followed to go and
+     * follow again, and threw their pending task away with it.
+     *
+     * @property coins the coins credited; 0 unless the action was verified.
+     * @property retryable the platform's provider was unreachable, so nothing was proven.
+     *   The order is still in progress and the same task should be offered for another try.
+     * @property message the server's own explanation, when it sent one.
+     * @property balance the authoritative balance after the credit, straight from the
+     *   server. The caller assigns this rather than adding [coins] to its own copy: a local
+     *   sum drifts from the ledger the moment anything else changes the balance (an
+     *   unfollow clawback, a bonus, a second device), and the user then sees "coins added"
+     *   next to a number that never moved.
+     */
+    data class VerifyResult(
+        val coins: Int,
+        val retryable: Boolean,
+        val message: String? = null,
+        val balance: Int? = null
+    )
 
     /**
      * POST /api/v6/posts/url -> snapshot the target video's like count.

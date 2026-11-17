@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The outlined "Upgrade" pill in the top bar.
+
+  Transparent interior, not a filled chip: it sits on the same black as the page, so a
+  fill would make it look like a button that was already pressed.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="999dp" />
+    <solid android:color="@android:color/transparent" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/tk_gold" />
+</shape>

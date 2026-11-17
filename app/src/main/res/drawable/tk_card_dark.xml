@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Neutral panel used by the balance card and the Settings / Restore rows.
+  Flat, no border: on the profile screen these sit far enough apart that a hairline on
+  every one of them turns the page into a grid.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="14dp" />
+    <solid android:color="@color/tk_surface_alt" />
+</shape>

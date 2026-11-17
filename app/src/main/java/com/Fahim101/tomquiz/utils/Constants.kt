@@ -98,6 +98,22 @@ object Constants {
     const val KEY_TIKTOK_USERNAME = "ttboost_tiktok_username"
     const val KEY_LOGIN_ID = "ttboost_login_id"
 
+    // --- In-flight task verification ------------------------------------------------
+    //
+    // Written the moment the app sends the user to another app to perform a task's action,
+    // and read back when they return. These cannot live only in the Activity: performing a
+    // follow means leaving for Instagram or TikTok, and on a small handset that is exactly
+    // when the process gets evicted. The user then comes back to a fresh Activity, the
+    // pending task is gone, and the reward for an action they really did perform is never
+    // claimed.
+    const val KEY_PENDING_VERIFY_ORDER_ID = "pending_verify_order_id"
+    const val KEY_PENDING_VERIFY_USERNAME = "pending_verify_username"
+    const val KEY_PENDING_VERIFY_IS_LIKES = "pending_verify_is_likes"
+    const val KEY_PENDING_VERIFY_PLATFORM = "pending_verify_platform"
+    const val KEY_PENDING_VERIFY_ACTION = "pending_verify_action"
+    const val KEY_PENDING_VERIFY_REWARD = "pending_verify_reward"
+    const val KEY_PENDING_VERIFY_OPENED_AT = "pending_verify_opened_at"
+
     /**
      * The server's stable avatar URL for a handle: `/api/v6/avatar/<platform>/<username>`.
      *
@@ -188,21 +204,38 @@ object Constants {
      * These are SocialBoost followers/likes packages and coin packs.
      */
     val BOOST_PRODUCT_IDS: List<String> = listOf(
-        "tt_follow_200",
+        // Followers — card
+        "tt_follow_201",
         "tt_follow_400",
         "tt_follow_900",
         "tt_follow_2000",
         "tt_follow_4300",
         "tt_follow_9000",
+        // Likes — card
         "tt_like_300",
         "tt_like_600",
         "tt_like_1300",
         "tt_like_2700",
         "tt_like_5600",
         "tt_like_11500",
-        "tt_follow_1000",
-        "tt_like_1000",
-        "tt_follow_9_99_discount",
+        // Views / Shares / Comments — card. These families used to be coin-only, so their
+        // Store section had no card packs at all.
+        "tt_view_1000",
+        "tt_view_3000",
+        "tt_view_10000",
+        "tt_view_25000",
+        "tt_view_50000",
+        "tt_share_300",
+        "tt_share_1000",
+        "tt_share_3000",
+        "tt_share_8000",
+        "tt_share_15000",
+        "tt_comment_200",
+        "tt_comment_600",
+        "tt_comment_1500",
+        "tt_comment_3500",
+        "tt_comment_7000",
+        // Coin packs
         "tt_coin_19_99",
         "tt_coin_99_99",
     )

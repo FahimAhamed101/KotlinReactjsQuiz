@@ -13,7 +13,7 @@ import { verifyHash } from '@/lib/signature';
 import { readJson, requireString, tiktokUsername, optionalBool, optionalString } from '@/lib/validate';
 import { allSettings, getInt } from '@/lib/settings';
 import { accountResourceV2 } from '@/lib/resources';
-import { getProfileInfo, hasLiveProvider } from '@/lib/services/profiles';
+import { getProfileInfo, hasLiveProvider, providerUnavailable } from '@/lib/services/profiles';
 import { upsertAccountFromProfile } from '@/lib/services/coinsCheck';
 import { claimWelcomeBonus, creditReferral } from '@/lib/services/welcomeBonus';
 import { normalizePlatform } from '@/lib/services/platforms';
@@ -84,30 +84,65 @@ const ACCOUNT_FRESHNESS_MS = 2 * 24 * 60 * 60 * 1000;
  * A row refreshed within the last two days is reused as-is; anything staler is
  * re-fetched so the client never renders a two-day-old avatar or follower count.
  *
- * An unresolvable username is a hard UserNotFound, exactly as Laravel does. The
- * account is part of the signup response — returning null would leave the client's
- * onboarding screen without a profile to show.
+ * Two things are deliberately *not* mirror-image with Laravel, and both only change the
+ * outcome when the scraper is unavailable rather than when the handle is wrong.
+ *
+ * Laravel's provider is TikTok, whose service answers even when it is having a bad day
+ * (it fabricates a stub rather than returning nothing), so its bare
+ * `throw UserNotFound("username: @x is invalid")` almost never fires on a live account.
+ * This port also signs users in on Instagram and Facebook, whose scrapers return a plain
+ * null for "out of monthly quota" and "no such account" alike. Relaying the first as the
+ * second — "your own username is invalid" — is not just unhelpful, it is false, and it
+ * blocked sign-up for every handle on the affected network. So:
+ *
+ *   1. A known Account row for this exact (platform, username) is reused before any
+ *      rejection. It is our own record that the handle resolved at some point; refusing
+ *      to create the user while holding proof the account exists is indefensible. The
+ *      cost is a possibly stale avatar, which the next refresh corrects.
+ *   2. Only when there is no such row *and* the provider could not be reached do we
+ *      answer 503 "try again" instead of blaming the handle.
+ *
+ * A handle that the provider genuinely reports as unknown — no row, provider reachable —
+ * still produces Laravel's exact UserNotFound message.
  */
 async function resolveAccount(platform, username, secUid) {
   const key = String(username).toLowerCase();
 
   // Platform AND username: the same handle is a different person on each network.
-  const existing = await db.account.findOne({
+  const fresh = await db.account.findOne({
     where: {
       platform,
       username: key,
       updatedAt: { gte: new Date(Date.now() - ACCOUNT_FRESHNESS_MS) },
     },
   });
-  if (existing) return existing;
+  if (fresh) return fresh;
+
+  // Nothing we already know about this handle, on any platform.
+  const known = await db.account.findOne({ where: { platform, username: key } });
 
   // No provider configured for this platform. The signup still completes — the user
   // exists and gets their bonus — it just has no social profile attached yet.
   // Failing here would lock the user out of the app entirely over a missing
   // third-party subscription.
-  if (!hasLiveProvider(platform)) return null;
+  if (!hasLiveProvider(platform)) return known ?? null;
 
   const profile = await getProfileInfo(platform, key, secUid || null);
-  if (!profile) throw err.userNotFound(`username: @${key} is invalid`);
-  return upsertAccountFromProfile(profile);
+  if (profile) return upsertAccountFromProfile(profile);
+
+  // (1) We have seen this handle resolve before, so let the signup through on the
+  // strength of that row rather than the scraper's current mood.
+  if (known) return known;
+
+  // (2) Fresh handle, and the scraper itself is the problem: an exhausted quota, an
+  // unsubscribed key, a 5xx, a timeout. That is a temporary condition the user cannot
+  // act on, so say so and let the client retry — do not tell them their handle is wrong.
+  if (providerUnavailable(platform)) {
+    throw err.serverError(
+      `${platform} lookups are temporarily unavailable. Please try again in a few minutes.`,
+    );
+  }
+
+  // The provider answered and did not know this handle. Laravel's wording, verbatim.
+  throw err.userNotFound(`username: @${key} is invalid`);
 }

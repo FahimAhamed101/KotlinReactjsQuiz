@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filled gold pill ("Try it now" on the upsell banner). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="999dp" />
+    <solid android:color="@color/tk_gold" />
+</shape>

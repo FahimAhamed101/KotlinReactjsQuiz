@@ -35,4 +35,23 @@
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>
     </style>
+
+    <!--
+      Rounded-square avatar used by the profile screen. The task card keeps the circular
+      ring — there it is a badge in a crowded row — but the profile portrait is the page's
+      hero, and the reference draws it as a squircle.
+    -->
+    <style name="TTSquircleImage">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">26%</item>
+    </style>
+
+    <!--
+      Rounded rectangle for the video still on a like task. Matches tk_media_card's 14dp so
+      the still fills the preview card without squaring off its corners.
+    -->
+    <style name="TTMediaCard">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">14dp</item>
+    </style>
 </resources>

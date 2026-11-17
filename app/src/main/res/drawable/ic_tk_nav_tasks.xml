@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bottom-nav icon: tasks (a check inside a ring) — idle state.
+
+  The colour is baked in rather than tinted at runtime. The active tab is drawn as the
+  *filled* twin of this icon (see `ic_tk_nav_tasks_on`), and a runtime ColorFilter would
+  flatten that fill back into an outline. So the nav swaps drawables instead of tints.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@color/tk_cyan"
+        android:strokeWidth="1.6"
+        android:pathData="M2.5,12 A9.5,9.5 0 1,0 21.5,12 A9.5,9.5 0 1,0 2.5,12 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@color/tk_cyan"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7.7,12.3 L10.8,15.4 L16.4,9.0" />
+</vector>

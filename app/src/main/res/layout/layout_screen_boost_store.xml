@@ -1,19 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The "New order" screen (the Boost tab).
+  The Store screen (the "Store" tab).
 
-  Rebuilt to match the reference app: a "What do you want to order?" heading over a
-  two-column grid of order-type tiles, then the target picker, then the packages.
+  Rebuilt to match the reference app exactly: a two-tab Profile / Video selector with a
+  gradient underline, then one flat list of packages.
 
-  Everything above the package list used to be a two-tab selector (Profile / Video).
-  The tabs are gone: the grid *is* the selector now, and it carries all five order types
-  the reference app offers rather than only the two we can deliver.
+  There is deliberately no heading above the tabs and no "Choose a package" label above
+  the list. The reference has neither, and both were part of what made the screen read as
+  a form to be filled in rather than a shop to buy from. The tabs sit straight under the
+  shell's top bar, and the packages run straight under the tabs.
 
-  One scrolling surface, so the grid, the picker and the package list never fight for
-  the screen — the same arrangement the More screen uses, for the same reason. The inner
-  RecyclerViews therefore all have nested scrolling off and wrap_content height.
+  The five-tile order-type grid is gone. It exposed every action the backend can measure
+  (Followers, Likes, Shares, Comments, Views), so the first thing a buyer met was a
+  taxonomy. Shares, Comments and Views remain fully implemented server-side; they are
+  simply not on this screen.
+
+  One scrolling surface, so the tabs, the target picker and the package list never fight
+  for the screen — the same arrangement the More screen uses, for the same reason. The
+  inner RecyclerViews therefore have nested scrolling off and wrap_content height.
 -->
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -25,39 +32,82 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingStart="16dp"
-        android:paddingTop="14dp"
+        android:paddingTop="8dp"
         android:paddingEnd="16dp"
         android:paddingBottom="80dp">
 
-        <!-- ===================== Heading ===================== -->
-        <TextView
-            android:id="@+id/tv_new_order_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:lineSpacingExtra="2dp"
-            android:text="@string/tt_new_order_title"
-            android:textColor="@color/tt_text_primary"
-            android:textSize="23sp"
-            android:textStyle="bold" />
-
-        <!-- ===================== Order-type grid =====================
-             Negative side margins cancel the tile's own 5dp margin at the outer edges,
-             so the grid lines up with the 16dp page gutter while keeping a 10dp gutter
-             between tiles. -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_order_types"
+        <!-- ===================== Profile | Video =====================
+             Each half owns its own underline, so selecting is a visibility flip on two
+             views rather than arithmetic on a shared indicator's translation. The
+             right-hand underline is the mirrored gradient (see tt_tab_indicator_mirror)
+             so the two halves share one palette, as in the reference. -->
+        <LinearLayout
+            android:id="@+id/layout_store_tabs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="-5dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="-5dp"
-            android:nestedScrollingEnabled="false"
-            android:overScrollMode="never"
-            android:scrollbars="none"
-            tools:itemCount="5"
-            tools:listitem="@layout/item_order_type_tile" />
+            android:background="@drawable/tt_store_tab_bar"
+            android:orientation="horizontal">
 
-        <!-- ===================== Target picker (post-scoped types) ===================== -->
+            <LinearLayout
+                android:id="@+id/tab_store_profile"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:paddingTop="16dp">
+
+                <TextView
+                    android:id="@+id/tv_store_tab_profile"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/tt_store_tab_profile"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:id="@+id/ind_store_profile"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="13dp"
+                    android:background="@drawable/tt_tab_indicator" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tab_store_video"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:paddingTop="16dp">
+
+                <TextView
+                    android:id="@+id/tv_store_tab_video"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/tt_store_tab_video"
+                    android:textColor="@color/tt_text_secondary"
+                    android:textSize="16sp" />
+
+                <View
+                    android:id="@+id/ind_store_video"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="13dp"
+                    android:background="@drawable/tt_tab_indicator_mirror"
+                    android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ===================== Target picker (Video tab) ===================== -->
         <LinearLayout
             android:id="@+id/card_video_target_selection"
             android:layout_width="match_parent"
@@ -66,6 +116,112 @@
             android:orientation="vertical"
             android:visibility="gone"
             tools:visibility="visible">
+
+            <!-- ===================== What to deliver =====================
+                 The Video tab used to mean "Likes" and nothing else. The server sells five
+                 package families (see product_types: Followers, Likes, Views, Shares,
+                 Comments) but no control ever asked which one — so the Views, Shares and
+                 Comments catalogues existed, were priced, and were unreachable.
+
+                 One chip per post-anchored action. Followers is not here because it is not
+                 anchored to a post: it lives on the Profile tab. The row is inside the video
+                 card, so it comes and goes with the tab and needs no extra visibility code. -->
+            <HorizontalScrollView
+                android:id="@+id/scroll_action_chips"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="13dp"
+                android:clipToPadding="false"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/layout_action_chips"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/chip_action_likes"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/tt_action_chip_bg"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingStart="13dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="13dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/tt_order_action_likes"
+                        android:textColor="@color/tt_chip_text"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/chip_action_views"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="7dp"
+                        android:background="@drawable/tt_action_chip_bg"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingStart="13dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="13dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/tt_order_action_views"
+                        android:textColor="@color/tt_chip_text"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/chip_action_shares"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="7dp"
+                        android:background="@drawable/tt_action_chip_bg"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingStart="13dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="13dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/tt_order_action_shares"
+                        android:textColor="@color/tt_chip_text"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/chip_action_comments"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="7dp"
+                        android:background="@drawable/tt_action_chip_bg"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingStart="13dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="13dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/tt_order_action_comments"
+                        android:textColor="@color/tt_chip_text"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <!-- What the chosen action actually means, plus its cheapest price. The chips
+                 name the action but cannot explain it, and "buy 100 views" means nothing to
+                 someone who has never watched a view land — the task is refused if the
+                 counter does not move, so the rule has to be stated before payment. -->
+            <TextView
+                android:id="@+id/tv_order_action_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/tt_text_secondary"
+                android:textSize="11.5sp"
+                tools:text="A view counts once the video has played. From 30 coins." />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -80,7 +236,7 @@
                     android:layout_weight="1"
                     android:text="@string/tt_new_order_target_title"
                     android:textColor="@color/tt_text_primary"
-                    android:textSize="16sp"
+                    android:textSize="14.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -148,16 +304,177 @@
                 tools:text="That does not look like a video link"
                 tools:visibility="visible" />
 
-            <!-- The account's own posts, so a link is not the only way in. -->
-            <TextView
-                android:id="@+id/tv_order_videos_title"
-                android:layout_width="wrap_content"
+            <!-- ===================== Resolved video =====================
+                 The video the pasted link actually points at.
+
+                 Pasting used to be blind: the link went into the field, a toast said
+                 "added", and the buyer had no idea whether the app had found the right
+                 video until the order failed later with "Could not read that video".
+                 This card is that missing confirmation — cover, whose video it is, and
+                 the counters the order will be measured against. It is hidden until a
+                 link resolves, so it never occupies space it cannot fill. -->
+            <ProgressBar
+                android:id="@+id/progress_order_link"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="10dp"
+                android:indeterminateTint="@color/tt_accent"
+                android:visibility="gone" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_selected_video"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/tt_surface"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/tt_divider"
+                app:strokeWidth="1dp"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="10dp">
+
+                    <FrameLayout
+                        android:layout_width="72dp"
+                        android:layout_height="96dp">
+
+                        <ImageView
+                            android:id="@+id/iv_selected_cover"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_gradient_dark"
+                            android:contentDescription="@string/tt_order_video_section"
+                            android:scaleType="centerCrop" />
+
+                        <ImageView
+                            android:id="@+id/iv_selected_play"
+                            android:layout_width="26dp"
+                            android:layout_height="26dp"
+                            android:layout_gravity="center"
+                            android:alpha="0.9"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_eye"
+                            android:tint="@color/white"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tv_selected_author"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/tt_text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            tools:text="@mando.increases" />
+
+                        <TextView
+                            android:id="@+id/tv_selected_stats"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/tt_text_secondary"
+                            android:textSize="11.5sp"
+                            tools:text="75 likes · 1.3k views" />
+
+                        <TextView
+                            android:id="@+id/tv_selected_desc"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:ellipsize="end"
+                            android:lineSpacingExtra="1dp"
+                            android:maxLines="2"
+                            android:textColor="@color/tt_text_secondary"
+                            android:textSize="11.5sp"
+                            android:visibility="gone"
+                            tools:text="the caption under the video"
+                            tools:visibility="visible" />
+
+                        <TextView
+                            android:id="@+id/btn_selected_change"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="5dp"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingTop="2dp"
+                            android:paddingEnd="6dp"
+                            android:paddingBottom="2dp"
+                            android:text="@string/tt_order_video_change"
+                            android:textColor="@color/tt_teal"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/btn_selected_clear"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="top"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:contentDescription="@string/tt_order_video_remove"
+                        android:focusable="true"
+                        android:padding="4dp"
+                        android:src="@drawable/ic_close"
+                        android:tint="@color/tt_text_secondary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- The account's own posts, so a link is not the only way in. The button
+                 opens the full-screen picker; the strip below is the quick path. -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="15dp"
-                android:text="@string/tt_new_order_videos_title"
-                android:textColor="@color/tt_text_secondary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_order_videos_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/tt_new_order_videos_title"
+                    android:textColor="@color/tt_text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btn_choose_video"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingStart="8dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="4dp"
+                    android:text="@string/tt_choose_video"
+                    android:textColor="@color/tt_teal"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <ProgressBar
                 android:id="@+id/progress_order_videos"
@@ -187,7 +504,10 @@
                 android:scrollbars="none" />
         </LinearLayout>
 
-        <!-- ===================== Profile-scoped note (Followers) ===================== -->
+        <!-- ===================== Profile tab note =====================
+             Followers land on the buyer's own profile, so there is nothing to paste.
+             Without this line the Profile tab looks like it is missing its half of the
+             screen. -->
         <TextView
             android:id="@+id/tv_profile_target_note"
             android:layout_width="match_parent"
@@ -200,7 +520,10 @@
             tools:text="Followers are added to your own profile @demo. Nothing to paste."
             tools:visibility="visible" />
 
-        <!-- ===================== Unsupported-type note ===================== -->
+        <!-- ===================== Unsupported-type note =====================
+             Both tabs are deliverable today, so this is never shown. It stays bound
+             because selectOrderType() still routes an unavailable type here, and a
+             silent dead tab would be worse than an explanation. -->
         <TextView
             android:id="@+id/tv_order_type_unavailable"
             android:layout_width="match_parent"
@@ -214,22 +537,12 @@
             tools:visibility="visible" />
 
         <!-- ===================== Packages ===================== -->
-        <TextView
-            android:id="@+id/tv_packages_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="Choose a package"
-            android:textColor="@color/tt_text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
         <ProgressBar
             android:id="@+id/progress_boost"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:layout_gravity="center_horizontal"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="22dp"
             android:layout_marginBottom="16dp"
             android:indeterminateTint="@color/tt_accent"
             android:visibility="gone" />
@@ -238,7 +551,7 @@
             android:id="@+id/tv_boost_empty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="22dp"
             android:layout_marginBottom="16dp"
             android:gravity="center"
             android:text="@string/tt_boost_loading"
@@ -250,7 +563,7 @@
             android:id="@+id/rv_boost_products"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             android:nestedScrollingEnabled="false"
             android:overScrollMode="never"
             android:scrollbars="none"

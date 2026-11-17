@@ -160,4 +160,34 @@
     <!-- Launcher icon: the background of the supplied artwork, used as the
          adaptive-icon background layer so it matches the legacy square. -->
     <color name="ic_launcher_background">#0A073C</color>
+
+    <!-- ==============================================================
+         Reference shell palette (boost-store home).
+
+         Sampled pixel-by-pixel from the reference screenshots the task screen has to
+         match: a flat #111111 page, #222222 secondary surfaces (Skip button, bottom
+         bar), the #FE2C55 red and #25F4EE cyan of the short-video brand the app
+         boosts on, and #FEC32C coin gold.
+
+         Deliberately its own `tk_` namespace instead of repainting the existing `tt_`
+         navy tokens: the Store and Codes screens were tuned against those, and a
+         wholesale repaint would have changed screens nobody asked to change.
+         ============================================================== -->
+    <color name="tk_bg">#FF111111</color>
+    <color name="tk_surface">#FF222222</color>
+    <color name="tk_surface_alt">#FF1A1A1A</color>
+    <color name="tk_divider">#FF2A2A2A</color>
+
+    <color name="tk_red">#FFFE2C55</color>
+    <color name="tk_red_dim">#FFD92049</color>
+    <color name="tk_cyan">#FF25F4EE</color>
+    <color name="tk_gold">#FFFEC32C</color>
+
+    <color name="tk_text">#FFFFFFFF</color>
+    <color name="tk_text_secondary">#FFCACACA</color>
+    <color name="tk_text_muted">#FF8A8A8A</color>
+
+    <!-- Bottom-nav idle. Grey rather than the cobalt `tt_text_secondary`, which reads
+         as "selected" against these black surfaces. -->
+    <color name="tk_nav_idle">#FF9A9A9A</color>
 </resources>

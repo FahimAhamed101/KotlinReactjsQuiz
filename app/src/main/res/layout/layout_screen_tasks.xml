@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Tasks screen — the SocialBoost Home.
+  Tasks screen — the app's home.
 
-  Layout mirrors the reference screenshot top to bottom:
-    centred avatar inside a blue->pink gradient ring
-    @username underneath
-    Skip  |  Follow +5 (pink, with the coin mark)
-    Tips card (numbered steps + the unfollow warning)
-    bottom navigation: Home / Store / More
+  Laid out the way the reference app lays it out, top to bottom:
+    "Your next task" heading
+    one-line status on the left, what the task pays on the right
+    a large rounded preview card holding the account and its size
+    Skip  |  the primary action (red, with the action's glyph)
+    "Other tasks" — the rest of the queue, then the how-to link
+
+  The preview card shows the video's own still on a like task, and the boosted account's
+  picture on a follow task. It used to show only the avatar, on the assumption that the
+  feed carried no thumbnail — which is precisely why a like task never showed the post the
+  user was being asked to like. The feed now carries the still as `post.cover`.
+
+  Sizing is taken from the reference: 16dp side margins, a 52dp action row with the
+  primary action roughly 2.25x the secondary, and a preview about 0.7 as tall as it is
+  wide. Scaled to this device that is a 240dp card.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -19,9 +28,8 @@
 
     <!-- ======================= Task area ======================= -->
     <!--
-      SwipeRefreshLayout wraps the whole task area so the empty state's
-      "Pull to retry" is a real gesture. It previously said "pull" while nothing
-      listened for the swipe, so a failed load left the screen stuck.
+      SwipeRefreshLayout wraps the whole task area so the empty state's "Pull to retry"
+      is a real gesture.
     -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_tasks"
@@ -33,512 +41,343 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-        <!-- Loading / empty state -->
-        <LinearLayout
-            android:id="@+id/layout_task_empty"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <ProgressBar
-                android:id="@+id/progress_task_loading"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:indeterminateTint="@color/tt_accent" />
-
-            <TextView
-                android:id="@+id/tv_task_empty"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="Loading tasks…"
-                android:textColor="@color/tt_text_secondary"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- The task itself -->
-        <ScrollView
-            android:id="@+id/scroll_task"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:scrollbars="none"
-            android:visibility="gone">
-
+            <!-- Loading / empty state -->
             <LinearLayout
+                android:id="@+id/layout_task_empty"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
                 android:orientation="vertical"
-                android:paddingStart="20dp"
-                android:paddingTop="18dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="16dp">
+                android:visibility="gone">
 
-                <!-- ======================= Your next task ======================= -->
-                <!--
-                  The reference app frames the card with a heading, a one-line status on
-                  the left and what the task is worth on the right.
+                <ProgressBar
+                    android:id="@+id/progress_task_loading"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:indeterminateTint="@color/tk_cyan" />
 
-                  Both are driven by the task actually on screen: while the feed is
-                  loading there is no task to describe, so the status says we are
-                  searching and the reward chip is hidden outright rather than showing
-                  the previous task's number.
-                -->
                 <TextView
-                    android:layout_width="match_parent"
+                    android:id="@+id/tv_task_empty"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/tt_your_next_task"
-                    android:textColor="@color/tt_text_primary"
-                    android:textSize="21sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="7dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tv_task_status"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:singleLine="true"
-                        android:text="@string/tt_searching_task"
-                        android:textColor="@color/tt_text_secondary"
-                        android:textSize="13sp" />
-
-                    <LinearLayout
-                        android:id="@+id/layout_task_status_reward"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:visibility="gone">
-
-                        <TextView
-                            android:id="@+id/tv_task_status_reward"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textColor="@color/tt_gold"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            tools:text="+5" />
-
-                        <ImageView
-                            android:layout_width="15dp"
-                            android:layout_height="15dp"
-                            android:layout_marginStart="5dp"
-                            android:contentDescription="Coins"
-                            android:src="@drawable/ic_coin"
-                            app:tint="@color/tt_gold" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Avatar in its gradient ring -->
-                <FrameLayout
-                    android:layout_width="150dp"
-                    android:layout_height="150dp"
                     android:layout_marginTop="16dp"
-                    android:layout_gravity="center_horizontal"
-                    android:background="@drawable/tt_avatar_ring"
-                    android:padding="10dp">
+                    android:paddingStart="32dp"
+                    android:paddingEnd="32dp"
+                    android:gravity="center"
+                    android:text="@string/tt_loading_tasks"
+                    android:textColor="@color/tk_text_secondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
 
-                    <com.google.android.material.imageview.ShapeableImageView
-                        android:id="@+id/iv_task_avatar"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:background="@color/tt_surface_elevated"
-                        android:contentDescription="Task account avatar"
-                        android:scaleType="centerCrop"
-                        app:shapeAppearanceOverlay="@style/TTCircleImage" />
-                </FrameLayout>
+            <!-- The task itself -->
+            <ScrollView
+                android:id="@+id/scroll_task"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true"
+                android:scrollbars="none"
+                android:visibility="gone">
 
-                <!-- @username -->
-                <TextView
-                    android:id="@+id/tv_task_username"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="14dp"
-                    android:text="@string/tt_loading_handle"
-                    android:textColor="@color/tt_text_primary"
-                    android:textSize="19sp"
-                    android:textStyle="bold" />
-
-                <!--
-                  Size of the account being boosted — the one piece of context that makes a
-                  task judgeable. GONE rather than "0 followers" when the network publishes
-                  no count, because an unknown figure must not look like a measurement.
-                -->
-                <TextView
-                    android:id="@+id/tv_task_target_stats"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/tt_text_secondary"
-                    android:textSize="13sp"
-                    android:visibility="gone"
-                    tools:text="11 followers · Verified" />
-
-                <!-- Action row: Skip | Follow +N -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:orientation="horizontal">
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="20dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="16dp">
 
+                    <!-- ======================= Your next task ======================= -->
                     <TextView
-                        android:id="@+id/btn_task_skip"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/tt_btn_skip"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:text="@string/tt_skip"
-                        android:textColor="@color/tt_text_primary"
-                        android:textSize="15sp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/tt_your_next_task"
+                        android:textColor="@color/tk_text"
+                        android:textSize="22sp"
                         android:textStyle="bold" />
 
-                    <LinearLayout
-                        android:id="@+id/btn_task_follow"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1.6"
-                        android:background="@drawable/tt_btn_follow"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/tv_task_follow_label"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/tt_follow"
-                            android:textColor="@color/tt_text_primary"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <!-- Coin mark + reward, e.g. "+5" -->
-                        <ImageView
-                            android:layout_width="16dp"
-                            android:layout_height="16dp"
-                            android:layout_marginStart="8dp"
-                            android:contentDescription="Coins"
-                            android:src="@drawable/ic_coin"
-                            app:tint="@color/tt_gold" />
-
-                        <TextView
-                            android:id="@+id/tv_task_reward"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="4dp"
-                            android:text="+5"
-                            android:textColor="@color/tt_text_primary"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- ======================= Tips card ======================= -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="22dp"
-                    android:background="@drawable/tt_card_bg"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <!-- Header: icon chip + title + collapse chevron -->
+                    <!--
+                      Both sides are driven by the task actually on screen: while the feed
+                      is loading there is no task to describe, so the status says we are
+                      searching and the reward is hidden outright rather than showing the
+                      previous task's number.
+                    -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="7dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <FrameLayout
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:background="@drawable/tt_icon_chip_bg">
-
-                            <ImageView
-                                android:layout_width="18dp"
-                                android:layout_height="18dp"
-                                android:layout_gravity="center"
-                                android:contentDescription="Tips"
-                                android:src="@drawable/ic_tip"
-                                app:tint="@color/tt_accent" />
-                        </FrameLayout>
-
                         <TextView
+                            android:id="@+id/tv_task_status"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
                             android:layout_weight="1"
-                            android:text="@string/tt_tips"
-                            android:textColor="@color/tt_text_primary"
-                            android:textSize="17sp"
-                            android:textStyle="bold" />
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:text="@string/tt_searching_task"
+                            android:textColor="@color/tk_text_secondary"
+                            android:textSize="14sp" />
 
-                        <ImageView
-                            android:id="@+id/btn_tips_toggle"
-                            android:layout_width="26dp"
-                            android:layout_height="26dp"
-                            android:background="@drawable/tt_btn_skip"
-                            android:contentDescription="Collapse tips"
-                            android:padding="6dp"
-                            android:src="@drawable/ic_chevron_up"
-                            app:tint="@color/tt_chevron" />
-                    </LinearLayout>
-
-                    <!-- Steps + warning (collapsible) -->
-                    <LinearLayout
-                        android:id="@+id/layout_tips_body"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:orientation="vertical">
-
-                        <!-- Step 1 | Step 2 -->
                         <LinearLayout
-                            android:layout_width="match_parent"
+                            android:id="@+id/layout_task_status_reward"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="1"
-                                    android:textColor="@color/tt_blue"
-                                    android:textSize="15sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="8dp"
-                                    android:text="@string/tt_step_click_button"
-                                    android:textColor="@color/tt_text_primary"
-                                    android:textSize="14sp" />
-                            </LinearLayout>
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="2"
-                                    android:textColor="@color/tt_blue"
-                                    android:textSize="15sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="8dp"
-                                    android:text="@string/tt_step_open_app"
-                                    android:textColor="@color/tt_text_primary"
-                                    android:textSize="14sp" />
-                            </LinearLayout>
-                        </LinearLayout>
-
-                        <!-- Step 3 | Step 4 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:orientation="horizontal">
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="3"
-                                    android:textColor="@color/tt_blue"
-                                    android:textSize="15sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="8dp"
-                                    android:text="@string/tt_step_give_follow"
-                                    android:textColor="@color/tt_text_primary"
-                                    android:textSize="14sp" />
-                            </LinearLayout>
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="4"
-                                    android:textColor="@color/tt_blue"
-                                    android:textSize="15sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="8dp"
-                                    android:text="@string/tt_step_back"
-                                    android:textColor="@color/tt_text_primary"
-                                    android:textSize="14sp" />
-                            </LinearLayout>
-                        </LinearLayout>
-
-                        <!-- Step 5 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:visibility="gone"
+                            tools:visibility="visible">
 
                             <TextView
+                                android:id="@+id/tv_task_status_reward"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="5"
-                                android:textColor="@color/tt_blue"
+                                android:textColor="@color/tk_text"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                tools:text="2" />
+
+                            <ImageView
+                                android:layout_width="17dp"
+                                android:layout_height="17dp"
+                                android:layout_marginStart="6dp"
+                                android:contentDescription="@string/coins_label"
+                                android:src="@drawable/ic_coin"
+                                app:tint="@color/tk_gold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- ======================= Preview card ======================= -->
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="240dp"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/tk_media_card">
+
+                        <!--
+                          The video a like task is about, filling the card. GONE for follow
+                          tasks, where the account picture below is the right thing to show.
+
+                          The feed carries the post's still as `post.cover`. Without it the
+                          card could only ever show an avatar, which does not tell the
+                          performer which post to like.
+                        -->
+                        <com.google.android.material.imageview.ShapeableImageView
+                            android:id="@+id/iv_task_cover"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@color/tk_surface"
+                            android:contentDescription="@string/tt_task_video_cover"
+                            android:scaleType="centerCrop"
+                            android:visibility="gone"
+                            app:shapeAppearanceOverlay="@style/TTMediaCard" />
+
+                        <!-- Keeps the handle and follower count readable over a pale still. -->
+                        <View
+                            android:id="@+id/view_task_scrim"
+                            android:layout_width="match_parent"
+                            android:layout_height="128dp"
+                            android:layout_gravity="bottom"
+                            android:background="@drawable/tk_task_cover_scrim"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.imageview.ShapeableImageView
+                            android:id="@+id/iv_task_avatar"
+                            android:layout_width="112dp"
+                            android:layout_height="112dp"
+                            android:layout_gravity="center_horizontal"
+                            android:layout_marginTop="34dp"
+                            android:background="@color/tk_surface"
+                            android:contentDescription="Task account avatar"
+                            android:scaleType="centerCrop"
+                            app:shapeAppearanceOverlay="@style/TTCircleImage" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:paddingBottom="16dp">
+
+                            <TextView
+                                android:id="@+id/tv_task_username"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="end"
+                                android:singleLine="true"
+                                android:text="@string/tt_loading_handle"
+                                android:textColor="@color/tk_text"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
+                            <!--
+                              Size of the account being boosted — the one piece of context
+                              that makes a task judgeable. GONE rather than "0 followers"
+                              when the network publishes no count, because an unknown
+                              figure must not look like a measurement.
+                            -->
+                            <TextView
+                                android:id="@+id/tv_task_target_stats"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:textColor="@color/tk_text_secondary"
+                                android:textSize="12sp"
+                                android:visibility="gone"
+                                tools:text="11 followers · Verified"
+                                tools:visibility="visible" />
+                        </LinearLayout>
+                    </FrameLayout>
+
+                    <!-- ======================= Actions ======================= -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/btn_task_skip"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/tk_btn_skip"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:text="@string/tt_skip"
+                            android:textColor="@color/tk_text"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:id="@+id/btn_task_follow"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="2.25"
+                            android:background="@drawable/tk_btn_primary"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="19dp"
+                                android:layout_height="19dp"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_tk_heart"
+                                app:tint="@color/white" />
+
+                            <TextView
+                                android:id="@+id/tv_task_follow_label"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="9dp"
+                                android:text="@string/tt_follow"
+                                android:textColor="@color/tk_text"
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
 
+                            <!--
+                              The payout is shown once, in the status row above, exactly as
+                              the reference does it. This view is kept because the screen
+                              binds it, and hidden so the same number is not printed twice.
+                            -->
                             <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="8dp"
-                                android:text="@string/tt_step_get_coins"
-                                android:textColor="@color/tt_text_primary"
-                                android:textSize="14sp" />
-                        </LinearLayout>
-
-                        <!-- Unfollow warning -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
-                            android:gravity="top"
-                            android:orientation="horizontal">
-
-                            <FrameLayout
-                                android:layout_width="28dp"
-                                android:layout_height="28dp"
-                                android:background="@drawable/tt_icon_chip_bg">
-
-                                <ImageView
-                                    android:layout_width="15dp"
-                                    android:layout_height="15dp"
-                                    android:layout_gravity="center"
-                                    android:contentDescription="Warning"
-                                    android:src="@drawable/ic_warning"
-                                    app:tint="@color/tt_tip_red" />
-                            </FrameLayout>
-
-                            <TextView
+                                android:id="@+id/tv_task_reward"
                                 android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="10dp"
-                                android:layout_weight="1"
-                                android:lineSpacingExtra="3dp"
-                                android:text="@string/tt_unfollow_warning"
-                                android:textColor="@color/tt_tip_red"
-                                android:textSize="13sp" />
+                                android:layout_height="0dp"
+                                android:visibility="gone"
+                                tools:text="+5" />
                         </LinearLayout>
                     </LinearLayout>
+
+                    <!--
+                      The numbered "how to" steps used to sit here as a full card. The
+                      reference puts them behind a single link instead, and the dialog they
+                      open already exists (btn_how_to_perform, below). These two ids are
+                      retained, hidden, because HomeActivity binds them as lateinit fields.
+                    -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/layout_tips_body"
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            android:orientation="vertical" />
+
+                        <ImageView
+                            android:id="@+id/btn_tips_toggle"
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            android:contentDescription="@string/tt_tips" />
+                    </LinearLayout>
+
+                    <!-- ======================= Other tasks ======================= -->
+                    <!--
+                      The rest of the fetched page, so the queue is visible instead of being
+                      hidden behind Skip.
+
+                      Read-only on purpose: the server decides which account is assigned to
+                      which task and what it pays, so letting a row here jump the queue
+                      would credit an order the user never completed.
+                    -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:text="@string/tt_other_tasks"
+                        android:textColor="@color/tk_text"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_other_tasks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:nestedScrollingEnabled="false"
+                        tools:listitem="@layout/item_task_row" />
+
+                    <TextView
+                        android:id="@+id/tv_other_tasks_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/tt_other_tasks_empty"
+                        android:textColor="@color/tk_text_secondary"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/btn_how_to_perform"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:text="@string/tt_how_to_perform_tasks"
+                        android:textColor="@color/tk_cyan"
+                        android:textSize="14sp" />
                 </LinearLayout>
-
-                <!-- ======================= Other tasks ======================= -->
-                <!--
-                  The rest of the fetched page, so the queue is visible instead of being
-                  hidden behind Skip.
-
-                  Read-only on purpose: the server decides which account is assigned to
-                  which task and what it pays, so letting a row here jump the queue would
-                  credit an order the user never completed.
-                -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="22dp"
-                    android:text="@string/tt_other_tasks"
-                    android:textColor="@color/tt_text_primary"
-                    android:textSize="19sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/btn_how_to_perform"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:text="@string/tt_how_to_perform_tasks"
-                    android:textColor="@color/tt_teal"
-                    android:textSize="13sp" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rv_other_tasks"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:nestedScrollingEnabled="false"
-                    tools:listitem="@layout/item_task_row" />
-
-                <TextView
-                    android:id="@+id/tv_other_tasks_empty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/tt_other_tasks_empty"
-                    android:textColor="@color/tt_text_secondary"
-                    android:textSize="12sp"
-                    android:visibility="gone" />
-            </LinearLayout>
-        </ScrollView>
+            </ScrollView>
         </FrameLayout>
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <!-- ======================= Section 2: your orders ======================= -->
     <!--
       The app's two halves on one screen. Everything above is a task someone else is being
-      paid to do; this strip is the buyer's side of the same ledger — the same rows shown
-      under More → My orders, so a buyer watching tasks can see what their own order is
-      doing without leaving the screen.
+      paid to do; this strip is the buyer's side of the same ledger.
 
       Outside the SwipeRefreshLayout on purpose: pull-to-refresh must not re-trigger while
       the order strip is being scrolled sideways.
@@ -547,7 +386,7 @@
         android:id="@+id/section_task_orders"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/tt_surface"
+        android:background="@color/tk_surface_alt"
         android:orientation="vertical"
         android:paddingTop="12dp"
         android:paddingBottom="14dp"
@@ -558,15 +397,15 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp">
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/tt_task_orders_title"
-                android:textColor="@color/tt_text_primary"
+                android:textColor="@color/tk_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -575,7 +414,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 tools:text="3"
-                android:textColor="@color/tt_text_secondary"
+                android:textColor="@color/tk_text_secondary"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -586,7 +425,7 @@
             android:layout_marginTop="10dp"
             android:clipToPadding="false"
             android:nestedScrollingEnabled="false"
-            android:paddingStart="20dp"
+            android:paddingStart="16dp"
             android:paddingEnd="10dp"
             tools:listitem="@layout/item_order_task" />
 
@@ -594,10 +433,10 @@
             android:id="@+id/tv_task_orders_empty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
             android:text="@string/tt_task_orders_empty"
-            android:textColor="@color/tt_text_secondary"
+            android:textColor="@color/tk_text_secondary"
             android:textSize="12sp"
             android:visibility="gone" />
     </LinearLayout>

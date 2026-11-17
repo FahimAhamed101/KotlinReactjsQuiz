@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  More screen — the account tab.
+  Profile screen — the account tab.
 
-  Replaced the old two-item AlertDialog so the user can actually see what their
-  coins did: the orders they placed and the full coins ledger, including the
-  CodeUnlock spends.
+  Laid out the way the reference lays it out, top to bottom:
+    a gold "try premium" banner
+    the portrait as a rounded square
+    @handle
+    Following / Followers / Likes, each with its own ring glyph
+    a balance card: coin, the figure in the accent colour, and a red Deposit block
+    flat full-width action rows
 
-  The two lists are RecyclerViews with nested scrolling disabled inside a
-  ScrollView. That trades view recycling for a single scroll surface, which is
-  the right call here because each list is capped at a page (30 rows).
+  Everything below the action rows is this app's own: the daily reward, the orders and the
+  coins ledger. The reference has none of those on this screen, but they are the reason
+  the tab exists here, so they are kept and restyled rather than dropped.
+
+  The two lists are RecyclerViews with nested scrolling disabled inside a ScrollView. That
+  trades view recycling for a single scroll surface, which is the right call here because
+  each list is capped at a page (30 rows).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -27,200 +35,350 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:paddingStart="16dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="16dp">
 
-            <!-- ======================= Profile card ======================= -->
-            <com.google.android.material.card.MaterialCardView
+            <!-- ======================= Premium banner ======================= -->
+            <!--
+              Opens the Store, which is where a subscription and the larger packages live.
+              The banner promises nothing by itself — it is a signpost, not a purchase.
+            -->
+            <LinearLayout
+                android:id="@+id/card_profile_promo"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardBackgroundColor="@color/tt_surface_elevated"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/tt_divider"
-                app:strokeWidth="1dp">
+                android:layout_height="86dp"
+                android:background="@drawable/tk_promo_banner"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="14dp">
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:gravity="center_horizontal"
-                    android:orientation="vertical"
-                    android:paddingStart="16dp"
-                    android:paddingTop="18dp"
-                    android:paddingEnd="16dp"
-                    android:paddingBottom="18dp">
-
-                    <FrameLayout
-                        android:layout_width="74dp"
-                        android:layout_height="74dp"
-                        android:background="@drawable/tt_avatar_ring"
-                        android:padding="3dp">
-
-                        <com.google.android.material.imageview.ShapeableImageView
-                            android:id="@+id/iv_more_avatar"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@color/tt_surface"
-                            android:contentDescription="Profile"
-                            android:scaleType="centerCrop"
-                            app:shapeAppearanceOverlay="@style/TTCircleImage" />
-                    </FrameLayout>
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
                     <TextView
-                        android:id="@+id/tv_more_username"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        tools:text="@demo_user"
-                        android:textColor="@color/tt_text_primary"
-                        android:textSize="19sp"
+                        android:text="@string/tt_promo_title"
+                        android:textColor="@color/tk_text"
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        tools:text="Try out SocialBoost" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="@string/tt_promo_sub"
+                        android:textColor="@color/tk_gold"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btn_profile_promo_cta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="38dp"
+                    android:background="@drawable/tk_btn_gold"
+                    android:gravity="center"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:text="@string/tt_promo_cta"
+                    android:textColor="#FF1A1400"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- ======================= Portrait ======================= -->
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/iv_more_avatar"
+                android:layout_width="112dp"
+                android:layout_height="112dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="26dp"
+                android:background="@color/tk_surface"
+                android:contentDescription="@string/tt_nav_profile"
+                android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/TTSquircleImage" />
+
+            <TextView
+                android:id="@+id/tv_more_username"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:singleLine="true"
+                android:textColor="@color/tk_text"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                tools:text="@fahim100011" />
+
+            <!-- ======================= Stats ======================= -->
+            <!--
+              The Likes cell starts as an em dash on purpose: Instagram and Facebook
+              profiles carry no total-likes figure at all, and the server sends null for
+              those rather than a confident zero. `tv_more_likes` is what code fills in, so
+              the placeholder only lives here.
+            -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_tk_stat_following" />
+
+                    <TextView
+                        android:id="@+id/tv_more_following"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        tools:text="5"
+                        android:textColor="@color/tk_text"
+                        android:textSize="17sp"
                         android:textStyle="bold" />
 
-                    <!--
-                      Following / Followers / Likes, laid out the way the reference app's
-                      profile screen does it.
-
-                      The Likes cell starts as an em dash on purpose: Instagram and
-                      Facebook profiles carry no total-likes figure at all, and the server
-                      sends null for those rather than a confident zero. `tv_more_likes` is
-                      what code fills in, so the placeholder only lives here.
-                    -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
+                    <TextView
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:gravity="center"
-                        android:orientation="horizontal">
+                        android:layout_marginTop="2dp"
+                        android:text="@string/tt_stat_following"
+                        android:textColor="@color/tk_text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
 
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center_horizontal"
-                            android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
 
-                            <ImageView
-                                android:layout_width="22dp"
-                                android:layout_height="22dp"
-                                android:contentDescription="@null"
-                                android:src="@drawable/ic_person_add"
-                                app:tint="@color/tt_tip_red" />
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_tk_stat_followers" />
 
-                            <TextView
-                                android:id="@+id/tv_more_following"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="7dp"
-                                tools:text="5"
-                                android:textColor="@color/tt_text_primary"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/tv_more_followers"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        tools:text="11"
+                        android:textColor="@color/tk_text"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="@string/tt_stat_following"
-                                android:textColor="@color/tt_text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/tt_stat_followers"
+                        android:textColor="@color/tk_text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
 
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center_horizontal"
-                            android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
 
-                            <ImageView
-                                android:layout_width="22dp"
-                                android:layout_height="22dp"
-                                android:contentDescription="@null"
-                                android:src="@drawable/ic_person"
-                                app:tint="@color/tt_tip_red" />
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_tk_stat_likes" />
 
-                            <TextView
-                                android:id="@+id/tv_more_followers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="7dp"
-                                tools:text="11"
-                                android:textColor="@color/tt_text_primary"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/tv_more_likes"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="—"
+                        android:textColor="@color/tk_text"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="@string/tt_stat_followers"
-                                android:textColor="@color/tt_text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/tt_stat_likes"
+                        android:textColor="@color/tk_text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
 
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center_horizontal"
-                            android:orientation="vertical">
+            <!-- ======================= Balance ======================= -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="96dp"
+                android:layout_marginTop="22dp"
+                android:background="@drawable/tk_card_dark"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="10dp">
 
-                            <ImageView
-                                android:layout_width="22dp"
-                                android:layout_height="22dp"
-                                android:contentDescription="@null"
-                                android:src="@drawable/ic_heart"
-                                app:tint="@color/tt_tip_red" />
+                <ImageView
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:layout_marginEnd="14dp"
+                    android:contentDescription="@string/coins_label"
+                    android:src="@drawable/ic_coin"
+                    app:tint="@color/tk_gold" />
 
-                            <TextView
-                                android:id="@+id/tv_more_likes"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="7dp"
-                                android:text="—"
-                                android:textColor="@color/tt_text_primary"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="@string/tt_stat_likes"
-                                android:textColor="@color/tt_text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/tt_your_balance"
+                        android:textColor="@color/tk_text_secondary"
+                        android:textSize="12sp" />
 
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="18dp"
-                        android:background="@drawable/tt_coin_pill_bg"
-                        android:gravity="center_vertical"
-                        android:paddingStart="12dp"
-                        android:paddingTop="6dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="6dp">
+                        android:layout_marginTop="2dp"
+                        android:gravity="bottom"
+                        android:orientation="horizontal">
 
-                        <ImageView
-                            android:layout_width="16dp"
-                            android:layout_height="16dp"
-                            android:contentDescription="Coins"
-                            android:src="@drawable/ic_coin"
-                            app:tint="@color/tt_gold" />
-
+                        <!-- The figure only; "coins" is its own label so the unit can stay
+                             small and white while the number carries the accent colour. -->
                         <TextView
                             android:id="@+id/tv_more_coins"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            tools:text="4765 coins"
-                            android:textColor="@color/tt_text_primary"
-                            android:textSize="13sp"
+                            android:text="0"
+                            android:textColor="@color/tk_cyan"
+                            android:textSize="30sp"
                             android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="7dp"
+                            android:layout_marginBottom="4dp"
+                            android:text="@string/tt_coins_unit"
+                            android:textColor="@color/tk_text"
+                            android:textSize="15sp" />
                     </LinearLayout>
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+
+                <!-- Buying coins is what "Deposit" means in this app. -->
+                <LinearLayout
+                    android:id="@+id/btn_profile_deposit"
+                    android:layout_width="92dp"
+                    android:layout_height="76dp"
+                    android:background="@drawable/tk_btn_deposit"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_tk_deposit" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:text="@string/tt_deposit"
+                        android:textColor="@color/tk_text"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ======================= Account actions ======================= -->
+            <!--
+              Flat rows rather than buttons with borders, matching the reference. The labels
+              are this app's own: it has no separate settings screen and no in-app purchase
+              to restore the same way, so the rows describe what they actually do instead of
+              borrowing the reference's wording.
+            -->
+            <LinearLayout
+                android:id="@+id/btn_more_how_it_works"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/tk_card_dark"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="21dp"
+                    android:layout_height="21dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_tk_settings" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/tt_how_it_works"
+                    android:textColor="@color/tk_text"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_more_refresh"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/tk_card_dark"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="21dp"
+                    android:layout_height="21dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_tk_restore" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/tt_more_refresh"
+                    android:textColor="@color/tk_text"
+                    android:textSize="15sp" />
+            </LinearLayout>
 
             <!-- ======================= Daily reward ======================= -->
             <!--
@@ -229,86 +387,76 @@
               clock or a skipped refresh cannot make the button look claimable when the
               server would refuse.
             -->
-            <com.google.android.material.card.MaterialCardView
+            <LinearLayout
                 android:id="@+id/card_daily_reward"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                app:cardBackgroundColor="@color/tt_surface_elevated"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/tt_divider"
-                app:strokeWidth="1dp">
+                android:layout_marginTop="22dp"
+                android:background="@drawable/tk_card_dark"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_marginEnd="12dp">
+
+                    <ImageView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/tt_daily_reward"
+                        android:src="@drawable/ic_coin"
+                        app:tint="@color/tk_gold" />
+                </FrameLayout>
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="14dp">
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                    <FrameLayout
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:layout_marginEnd="12dp"
-                        android:background="@drawable/tt_coin_pill_bg">
-
-                        <ImageView
-                            android:layout_width="22dp"
-                            android:layout_height="22dp"
-                            android:layout_gravity="center"
-                            android:contentDescription="@string/tt_daily_reward"
-                            android:src="@drawable/ic_coin"
-                            app:tint="@color/tt_gold" />
-                    </FrameLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/tv_daily_reward_title"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/tt_daily_reward"
-                            android:textColor="@color/tt_text_primary"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tv_daily_reward_subtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            tools:text="+100 coins today"
-                            android:textColor="@color/tt_text_secondary"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-
-                    <androidx.appcompat.widget.AppCompatButton
-                        android:id="@+id/btn_daily_claim"
+                    <TextView
+                        android:id="@+id/tv_daily_reward_title"
                         android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:minWidth="96dp"
-                        android:background="@drawable/tt_btn_pink_pill"
-                        android:stateListAnimator="@null"
-                        tools:text="Claim"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white"
-                        android:textSize="13sp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/tt_daily_reward"
+                        android:textColor="@color/tk_text"
+                        android:textSize="15sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_daily_reward_subtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        tools:text="+100 coins today"
+                        android:textColor="@color/tk_text_secondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_daily_claim"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:minWidth="96dp"
+                    android:background="@drawable/tk_btn_primary"
+                    android:stateListAnimator="@null"
+                    tools:text="Claim"
+                    android:textAllCaps="false"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <!-- ======================= Orders ======================= -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="24dp"
                 android:text="@string/tt_more_orders"
-                android:textColor="@color/tt_text_primary"
+                android:textColor="@color/tk_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -318,7 +466,7 @@
                 android:layout_height="26dp"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp"
-                android:indeterminateTint="@color/tt_accent"
+                android:indeterminateTint="@color/tk_cyan"
                 android:visibility="gone" />
 
             <TextView
@@ -327,7 +475,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="@string/tt_more_no_orders"
-                android:textColor="@color/tt_text_secondary"
+                android:textColor="@color/tk_text_secondary"
                 android:textSize="13sp"
                 android:visibility="gone" />
 
@@ -344,9 +492,9 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="24dp"
                 android:text="@string/tt_more_coins_history"
-                android:textColor="@color/tt_text_primary"
+                android:textColor="@color/tk_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -356,7 +504,7 @@
                 android:layout_height="26dp"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp"
-                android:indeterminateTint="@color/tt_accent"
+                android:indeterminateTint="@color/tk_cyan"
                 android:visibility="gone" />
 
             <TextView
@@ -365,7 +513,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="@string/tt_more_no_history"
-                android:textColor="@color/tt_text_secondary"
+                android:textColor="@color/tk_text_secondary"
                 android:textSize="13sp"
                 android:visibility="gone" />
 
@@ -378,43 +526,27 @@
                 android:visibility="gone"
                 tools:listitem="@layout/item_coin_history" />
 
-            <!-- ======================= Actions ======================= -->
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_more_how_it_works"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="24dp"
-                android:background="@drawable/tt_btn_skip"
-                android:stateListAnimator="@null"
-                android:text="@string/tt_how_it_works"
-                android:textColor="@color/tt_text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_more_refresh"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/tt_btn_skip"
-                android:stateListAnimator="@null"
-                android:text="@string/tt_more_refresh"
-                android:textColor="@color/tt_text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <androidx.appcompat.widget.AppCompatButton
+            <!-- ======================= Sign out ======================= -->
+            <LinearLayout
                 android:id="@+id/btn_more_signout"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="10dp"
+                android:layout_height="54dp"
+                android:layout_marginTop="24dp"
                 android:layout_marginBottom="16dp"
-                android:background="@drawable/btn_outline"
-                android:stateListAnimator="@null"
-                android:text="@string/tt_more_signout"
-                android:textColor="@color/tt_tip_red"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:background="@drawable/tk_card_dark"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tt_more_signout"
+                    android:textColor="@color/tt_tip_red"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
         </LinearLayout>
     </ScrollView>

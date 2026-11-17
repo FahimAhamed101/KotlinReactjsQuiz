@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The premium upsell banner on the profile screen: dark gold-tinted panel inside a gold
+  hairline. The gradient stands in for the blurred artwork the reference uses, so the
+  panel still has depth without shipping a bitmap.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="14dp" />
+    <gradient
+        android:angle="0"
+        android:startColor="#FF2A2417"
+        android:centerColor="#FF1F1A10"
+        android:endColor="#FF3A2E14"
+        android:type="linear" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/tk_gold" />
+</shape>

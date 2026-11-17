@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Primary action on the task card ("Like video" / "Follow").
+
+  Solid brand red rather than a gradient: at 52dp tall with white text, a gradient's only
+  visible effect is to make the bottom half look dimmer than the top.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="10dp" />
+    <solid android:color="@color/tk_red" />
+</shape>

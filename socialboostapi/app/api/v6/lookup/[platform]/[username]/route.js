@@ -30,7 +30,7 @@
 import { handle } from '@/lib/envelope';
 import { verifySignature } from '@/lib/signature';
 import { accountResourceV2 } from '@/lib/resources';
-import { getProfileInfo, hasLiveProvider } from '@/lib/services/profiles';
+import { getProfileInfo, hasLiveProvider, providerUnavailable } from '@/lib/services/profiles';
 import { upsertAccountFromProfile } from '@/lib/services/coinsCheck';
 import { normalizePlatform, Platform } from '@/lib/services/platforms';
 import { err } from '@/lib/errors';
@@ -73,6 +73,15 @@ export const GET = handle(async (request, { params }) => {
 
   const profile = await getProfileInfo(platform, username, null);
   if (!profile) {
+    // "The scraper is out of quota / down" is a different answer from "that handle does
+    // not exist", and this screen exists precisely to stop the user blaming themselves.
+    // Telling someone to check the spelling of a handle that is correct is the worst
+    // version of that. See `providerUnavailable` in lib/services/profiles.js.
+    if (providerUnavailable(platform)) {
+      throw err.serverError(
+        `${platform} lookups are temporarily unavailable. Please try again in a few minutes.`,
+      );
+    }
     throw err.userNotFound(
       `Could not find @${username} on ${platform}. Check the spelling.`,
     );

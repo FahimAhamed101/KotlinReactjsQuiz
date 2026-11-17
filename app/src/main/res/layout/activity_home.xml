@@ -2,126 +2,107 @@
 <!--
   Home shell.
 
-  Top bar mirrors SocialBoost: avatar on the left, the SocialBoost wordmark centred
-  (TT in white, Boost in pink), the coin pill on the right.
+  Top bar is the reference chrome: a gold "Upgrade" pill on the left, the name of the
+  current tab centred, and the coin balance on the right. The wordmark is gone — it cost
+  the whole centre slot and told the user nothing they did not already know.
 
-  The bottom navigation is owned by the shell (not by an individual screen) so
-  it stays visible on every tab — the reference app behaves the same way.
+  The bottom navigation is owned by the shell (not by an individual screen) so it stays
+  visible on every tab. It is icon-only, like the reference: four 24dp ring glyphs, the
+  active one filled. The gone TextViews below each icon are kept because HomeActivity
+  binds them as lateinit fields — `findViewById` must still return a view.
 
-  The ViewFlipper holds the two screens:
-    0 = Tasks     (the SocialBoost Home feed — replaced the old quiz)
-    1 = Store     (TikTok boost packages paid with coins + the code catalogue)
+  The ViewFlipper holds the four screens:
+    0 = Tasks     (the task feed — replaced the old quiz)
+    1 = Store     (boost packages paid with coins + the code catalogue)
+    2 = Codes     (source-code catalogue + subscription)
+    3 = Profile   (account, orders, coins ledger)
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/tt_bg_aurora"
+    android:background="@color/tk_bg"
     android:orientation="vertical">
 
     <!-- ======================= Top bar ======================= -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/tt_top_bar_gradient"
+        android:background="@color/tk_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="16dp"
-        android:paddingTop="12dp"
+        android:paddingTop="10dp"
         android:paddingEnd="16dp"
-        android:paddingBottom="12dp">
+        android:paddingBottom="10dp">
 
-        <!-- Profile avatar with the gradient ring -->
+        <!--
+          The signed-in account's picture, as in the reference chrome, with a small red
+          badge on its bottom-end corner. Tapping it opens the Profile tab.
+
+          This replaced the gold "Upgrade" pill. The pill only ever appeared on the Tasks
+          tab and pointed at the Store, which the bottom navigation already does — so it
+          spent the whole left-hand slot repeating a signpost that was on screen anyway.
+        -->
         <FrameLayout
-            android:id="@+id/btn_profile"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:background="@drawable/tt_avatar_ring"
+            android:id="@+id/layout_top_avatar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true"
-            android:padding="2dp">
+            android:paddingEnd="6dp">
 
             <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/iv_top_avatar"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@color/tt_surface_elevated"
-                android:contentDescription="Profile"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="start"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/tt_avatar_ring"
+                android:contentDescription="@string/tt_nav_profile"
                 android:scaleType="centerCrop"
-                app:shapeAppearanceOverlay="@style/TTCircleImage" />
+                app:shapeAppearanceOverlay="@style/TTSquircleImage" />
 
-            <!-- Switch account badge matching SocialBoost reference -->
             <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:id="@+id/iv_top_avatar_badge"
+                android:layout_width="17dp"
+                android:layout_height="17dp"
                 android:layout_gravity="bottom|end"
-                android:background="@drawable/badge_switch_account"
-                android:src="@drawable/ic_switch_arrows"
-                android:padding="2.5dp"
-                app:tint="@color/white"
-                android:contentDescription="Switch Account" />
+                android:contentDescription="@null"
+                android:src="@drawable/ic_top_badge" />
         </FrameLayout>
 
-        <!-- Center Wordmark / Title Frame -->
+        <!-- Centre: whichever tab is showing. Set from code in selectTab(). -->
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1">
 
-            <!-- SocialBoost wordmark -->
-            <LinearLayout
-                android:id="@+id/layout_top_wordmark"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/tt_wordmark_tt"
-                    android:textColor="@color/tt_text_primary"
-                    android:textSize="21sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/tt_wordmark_boost"
-                    android:textColor="@color/cta_start"
-                    android:textSize="21sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:background="@drawable/badge_discount_flame"
-                    android:text="PRO"
-                    android:textColor="@color/white"
-                    android:textSize="10sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.08"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="2dp" />
-            </LinearLayout>
-
-            <!-- Screen Title (e.g. Store) -->
             <TextView
                 android:id="@+id/tv_top_screen_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="Store"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:textStyle="bold"
+                android:text="Tasks"
+                android:textColor="@color/tk_text"
+                android:textSize="19sp"
+                android:textStyle="bold" />
+
+            <!--
+              The old wordmark. Kept as an empty, hidden view because HomeActivity holds a
+              lateinit-free reference to this id and would not compile without it.
+            -->
+            <LinearLayout
+                android:id="@+id/layout_top_wordmark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="horizontal"
                 android:visibility="gone" />
         </FrameLayout>
 
-        <!-- Coin pill with star coin icon -->
+        <!-- Coin balance: the number and the coin inside one lit pill, as in the reference. -->
         <LinearLayout
             android:id="@+id/chip_coins"
             android:layout_width="wrap_content"
@@ -130,27 +111,27 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:paddingStart="10dp"
-            android:paddingEnd="12dp">
-
-            <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:contentDescription="Coins"
-                android:src="@drawable/ic_star_coin" />
+            android:paddingStart="15dp"
+            android:paddingEnd="9dp">
 
             <TextView
                 android:id="@+id/tv_coins_balance"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
                 android:text="0"
-                android:textColor="@color/tt_text_primary"
-                android:textSize="15sp"
+                android:textColor="@color/tk_text"
+                android:textSize="17sp"
                 android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="6dp"
+                android:contentDescription="@string/coins_label"
+                android:src="@drawable/ic_star_coin" />
         </LinearLayout>
 
-        <!-- Kept for the greeting binding; hidden in the SocialBoost shell. -->
+        <!-- Kept for the greeting binding; hidden in the shell. -->
         <TextView
             android:id="@+id/tv_home_greeting"
             android:layout_width="0dp"
@@ -170,7 +151,7 @@
             android:id="@+id/include_screen_tasks"
             layout="@layout/layout_screen_tasks" />
 
-        <!-- Screen 1: Boost Store (TikTok Followers, Likes & Coin Packs) -->
+        <!-- Screen 1: Boost Store (Followers, Likes & Coin Packs) -->
         <include
             android:id="@+id/include_screen_boost"
             layout="@layout/layout_screen_boost_store" />
@@ -180,23 +161,27 @@
             android:id="@+id/include_screen_buy_codes"
             layout="@layout/layout_screen_buy_codes" />
 
-        <!-- Screen 3: More (Profile, Orders, Coins Ledger) -->
+        <!-- Screen 3: Profile (account, orders, coins ledger) -->
         <include
             android:id="@+id/include_screen_more"
             layout="@layout/layout_screen_more" />
-
     </ViewFlipper>
 
     <!-- ======================= Bottom navigation ======================= -->
+    <!--
+      Icons are swapped rather than tinted: the active state is the *filled* twin of each
+      glyph, and a runtime ColorFilter would flatten that fill back into an outline.
+      See selectTab().
+    -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_bottom_nav_gradient"
+        android:background="@color/tk_surface"
         android:orientation="horizontal"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
-        <!-- Tasks (Home) -->
+        <!-- Tasks -->
         <LinearLayout
             android:id="@+id/nav_home"
             android:layout_width="0dp"
@@ -205,28 +190,25 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
             <ImageView
                 android:id="@+id/iv_nav_home"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:contentDescription="Tasks"
-                android:src="@drawable/ic_home"
-                app:tint="@color/tt_accent" />
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:contentDescription="@string/nav_tasks"
+                android:src="@drawable/ic_tk_nav_tasks_on" />
 
             <TextView
                 android:id="@+id/tv_nav_home"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Tasks"
-                android:textColor="@color/tt_accent"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                android:layout_height="0dp"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Store (Likes & Followers) -->
+        <!-- Store -->
         <LinearLayout
             android:id="@+id/nav_boost"
             android:layout_width="0dp"
@@ -235,27 +217,25 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
             <ImageView
                 android:id="@+id/iv_nav_boost"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:contentDescription="Store"
-                android:src="@drawable/ic_person_add"
-                app:tint="@color/tt_text_secondary" />
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:contentDescription="@string/tt_nav_store"
+                android:src="@drawable/ic_tk_nav_store" />
 
             <TextView
                 android:id="@+id/tv_nav_boost"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Store"
-                android:textColor="@color/tt_text_secondary"
-                android:textSize="11sp" />
+                android:layout_height="0dp"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Codes Store (Source Codes) -->
+        <!-- Codes -->
         <LinearLayout
             android:id="@+id/nav_codes"
             android:layout_width="0dp"
@@ -264,27 +244,25 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
             <ImageView
                 android:id="@+id/iv_nav_codes"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
                 android:contentDescription="Codes"
-                android:src="@drawable/ic_code"
-                app:tint="@color/tt_text_secondary" />
+                android:src="@drawable/ic_tk_nav_codes" />
 
             <TextView
                 android:id="@+id/tv_nav_codes"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Codes"
-                android:textColor="@color/tt_text_secondary"
-                android:textSize="11sp" />
+                android:layout_height="0dp"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- More -->
+        <!-- Profile -->
         <LinearLayout
             android:id="@+id/nav_more"
             android:layout_width="0dp"
@@ -293,24 +271,22 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
             <ImageView
                 android:id="@+id/iv_nav_more"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:contentDescription="More"
-                android:src="@drawable/ic_more"
-                app:tint="@color/tt_text_secondary" />
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:contentDescription="@string/tt_nav_profile"
+                android:src="@drawable/ic_tk_nav_more" />
 
             <TextView
                 android:id="@+id/tv_nav_more"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/tt_nav_more"
-                android:textColor="@color/tt_text_secondary"
-                android:textSize="11sp" />
+                android:layout_height="0dp"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 

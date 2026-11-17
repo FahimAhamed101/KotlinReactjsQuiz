@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Restore-purchases row glyph: a counter-clockwise refresh arrow. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFE6E6E6"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:pathData="M19.9,12.0 A7.9,7.9 0 1,1 16.7,5.9" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFE6E6E6"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M17.0,2.6 L17.0,6.3 L13.3,6.3" />
+</vector>

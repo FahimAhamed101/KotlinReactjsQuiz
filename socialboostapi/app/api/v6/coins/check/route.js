@@ -3,7 +3,16 @@
 // Ported from CoinsControllerV2::check -> CoinsCheckService::handleCheck.
 // Verifies a completed follow/like and credits coins.
 //
-// Response: { is_success, coins_earned, already, need_relogin, is_unavailable }
+// Response: { is_success, coins_earned, coins_balance, already, need_relogin, is_unavailable,
+//             retryable, message }
+//
+// `coins_balance` is the authoritative balance after the credit: the client assigns it
+// rather than adding `coins_earned` locally, which drifts from the ledger after a bonus,
+// an unfollow clawback or a credit from another device.
+//
+// `retryable` means nothing was proven either way — the provider was unreachable, or (for
+// a view) it had not published the new play count yet. The client must keep the task and
+// invite another Check, never tell the user they failed to perform the action.
 
 import { handle } from '@/lib/envelope';
 import { guard } from '@/lib/guard';
